@@ -48,9 +48,8 @@ module fpeg
   !----------------------------------------------------------------------------
 
   type, extends(SourceT) :: StringSrcT
-    character*10000 :: String
-    integer         :: sz
-    integer         :: loc
+    character(len=:), allocatable :: string
+    integer          :: loc
   contains
     procedure :: getLoc => StringSrcT_getLoc
     procedure :: setLoc => StringSrcT_setLoc
@@ -111,8 +110,8 @@ module fpeg
   !----------------------------------------------------------------------------
 
   type, extends(PatternT) :: PstrT
-    character(len=100) :: string
-    integer            :: sz
+    character(len=100), allocatable :: string
+    integer          :: sz
   contains
     procedure :: match => PstrT_match
   end type PstrT
@@ -183,6 +182,20 @@ module fpeg
     module procedure Pstr, Pn
   end interface
 
+  !----------------------------------------------------------------------------
+
+  type :: CaptureT
+    integer :: idx1, idx2
+    class(SourceT), pointer :: src
+    type(CaptureT), pointer :: next => NULL()
+  contains
+    procedure :: getValue   => CaptureT_getValue
+    procedure :: getNext    => CaptureT_getNext
+    procedure :: addCapture => CaptureT_addCapture
+  end type CaptureT
+
+  !----------------------------------------------------------------------------
+
 contains
 
   !============================================================================
@@ -193,8 +206,8 @@ contains
     character*(*)    :: string
     type(StringSrcT) :: stringSrc
 
+    allocate(character(len(string)) :: stringSrc%string)
     stringSrc%string = string
-    stringSrc%sz     = len(string)
     stringSrc%loc    = 1
   end function newStringSrc
 
@@ -216,7 +229,7 @@ contains
 
     success = .false.
     if (loc < 0) return
-    if (loc > this%sz+1) return
+    if (loc > len(this%string)+1) return
     this%loc = loc
     success = .true.
   end function StringSrcT_setLoc
@@ -232,10 +245,10 @@ contains
     chr = ' '
     success = .false.
     if (PRESENT(loc)) then
-      if (0 > loc .or. loc > this%sz) return
+      if (0 > loc .or. loc > len(this%string)) return
       chr = this%string(loc:loc)
     else
-      if (this%loc > this%sz) return
+      if (this%loc > len(this%string)) return
       chr = this%string(this%loc:this%loc)
       this%loc = this%loc + 1
     end if
@@ -253,7 +266,7 @@ contains
 
     success = .false.
     if (i<j) return
-    if (j > this%sz) return
+    if (j > len(this%string)) return
     if (i < 1) return
     string = this%string(i:j)
     success = .true.
@@ -644,6 +657,54 @@ contains
     ! On failure reset to start
 10  match = noMatch(src, start)
   end function PatternPowerT_match
+
+  !============================================================================
+  ! CaptureT
+  !============================================================================
+
+  function CaptureT_getValue(this, string) result(success)
+    class(CaptureT)               :: this
+    character(len=:), allocatable :: string
+    logical                       :: success
+    integer :: sz
+
+    sz = this%idx2 - this%idx1 + 1
+    if (sz < 0) return
+    allocate(character(this%idx2 - this%idx1 + 1) :: string)
+    success = this%src%getStr(this%idx1, this%idx2, string)
+  end function CaptureT_getValue
+
+  !============================================================================
+
+  function CaptureT_getNext(this, capt) result(success)
+    class(CaptureT)          :: this
+    class(CaptureT), pointer :: capt
+    logical                  :: success
+
+    capt => this%next
+    success = associated(capt)
+  end function CaptureT_getNext
+
+  !============================================================================
+
+  function CaptureT_addCapture(this, idx1, idx2) result(capt)
+    class(CaptureT), target :: this
+    integer         :: idx1, idx2
+    class(CaptureT), pointer :: capt
+
+    capt => this
+    do
+      if (.not.associated(capt%next)) then
+        allocate(capt%next)
+        capt => capt%next
+        capt%src => this%src
+        capt%idx1 = idx1
+        capt%idx2 = idx2
+        return
+      end if
+      capt => capt%next
+    end do
+  end function CaptureT_addCapture
 
   !============================================================================
 

@@ -60,12 +60,12 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
-  type, abstract :: MatchT
+  type :: MatchT
     logical :: isMatch = .false.
     !class(Source), pointer :: src => NULL()
   end type MatchT
 
-  type(MatchT) :: no_match
+  type(MatchT), target :: no_match
 
   !----------------------------------------------------------------------------
 
@@ -83,11 +83,11 @@ module fpeg
   !----------------------------------------------------------------------------
 
   abstract interface
-    function match(this, src)
+    function match(this, src) result(match1)
       import :: PatternT, SourceT, MatchT
-      class(PatternT) :: this
-      class(SourceT)  :: src
-      class(MatchT)   :: match
+      class(PatternT)        :: this
+      class(SourceT)         :: src
+      class(MatchT), pointer :: match1
     end function match
   end interface
 
@@ -130,7 +130,7 @@ module fpeg
 
   type, extends(PatternT) :: PatternPowerT
     class(PatternT), pointer :: ptn
-    integer :: power
+    integer :: n
   contains
     procedure :: match => PatternPowerT_match
   end type PatternPowerT
@@ -186,7 +186,6 @@ contains
     character         :: chr
     integer, optional :: loc
     logical           :: success
-    integer :: loc1
 
     chr = ' '
     success = .false.
@@ -223,23 +222,26 @@ contains
   !============================================================================
 
   function newMatchLoc(src) result(matchloc)
-    type(SourceT)   :: src
-    type(MatchLocT) :: matchloc
+    class(SourceT)           :: src
+    type(MatchLocT), pointer :: matchloc
+    type(MatchLocT), target  :: matchloc1
 
-    matchloc%loc = src%getLoc()
-    matchloc%isMatch = .true.
+    matchloc1%loc = src%getLoc()
+    matchloc1%isMatch = .true.
+    matchloc => matchloc1
+    write(*,*) matchloc%loc
   end function newMatchLoc
 
   !============================================================================
 
   function noMatch(src, reset) result(match)
-    type(SourceT) :: src
-    integer :: reset
+    class(SourceT)         :: src
+    integer                :: reset
+    class(MatchT), pointer :: match
     logical :: success
-    type(MatchT) :: match
 
     success = src%setLoc(reset)
-    match = no_match
+    match => no_match
   end function noMatch
 
   !============================================================================
@@ -261,22 +263,21 @@ contains
   !============================================================================
 
   function PstrT_match(this, src) result(match)
-    class(PstrT)   :: this
-    class(SourceT) :: src
-    class(MatchT)  :: match
+    class(PstrT)           :: this
+    class(SourceT)         :: src
+    class(MatchT), pointer :: match
     integer :: start, i
     character :: c
-    logical :: reset
 
     start = src%getLoc()
     do i = 1, this%sz
       if (.not.src%getChr(c)) goto 10
       if (c .ne. this%string(i:i)) goto 10
     end do
-    match = newMatchLoc(src)
+    match => newMatchLoc(src)
     return
 10  continue
-    match = noMatch(src, start)
+    match => noMatch(src, start)
   end function PstrT_match
 
   !============================================================================
@@ -297,9 +298,9 @@ contains
   !============================================================================
 
   function PnT_match(this, src) result(match)
-    class(PnT)     :: this
-    class(SourceT) :: src
-    class(MatchT)  :: match
+    class(PnT)             :: this
+    class(SourceT)         :: src
+    class(MatchT), pointer :: match
     integer :: start
     logical :: reset
 
@@ -309,10 +310,10 @@ contains
     reset = src%setLoc(start+this%n)
     if (.not.reset) goto 10
 
-    match = newMatchLoc(src)
+    match => newMatchLoc(src)
     return
 10  continue
-    match = noMatch(src, start)
+    match => noMatch(src, start)
   end function PnT_match
 
   !============================================================================
@@ -323,7 +324,6 @@ contains
 !
 ! Create a string pattern
 !
-    integer :: n
     class(PatternT),    pointer :: ptn1, ptn2
     type(PatternPlusT), pointer :: ptn
 
@@ -335,22 +335,22 @@ contains
   !============================================================================
 
   function PatternPlusT_match(this, src) result(match)
-    class(PatternPlusT) :: this
-    class(SourceT)      :: src
-    class(MatchT)       :: match
+    class(PatternPlusT)    :: this
+    class(SourceT)         :: src
+    class(MatchT), pointer :: match
     integer :: start
 
     start = src%getLoc()
-    match = this%ptn1%match(src)
+    match => this%ptn1%match(src)
     if (match%isMatch) goto 10
-    match = this%ptn2%match(src)
+    match => this%ptn2%match(src)
     if (match%isMatch) goto 10
 
-    match = noMatch(src, start)
+    match => noMatch(src, start)
     return
 
 10  continue
-    match = newMatchLoc(src)
+    match => newMatchLoc(src)
   end function PatternPlusT_match
 
   !============================================================================
@@ -372,59 +372,57 @@ contains
   !============================================================================
 
   function PatternTimesT_match(this, src) result(match)
-    class(PatternTimesT) :: this
-    class(SourceT)       :: src
-    class(MatchT)        :: match
+    class(PatternTimesT)   :: this
+    class(SourceT)         :: src
+    class(MatchT), pointer :: match
     integer :: start
-    logical :: reset
 
     start = src%getLoc()
-    match = this%ptn1%match(src)
+    match => this%ptn1%match(src)
     if (.not.match%isMatch) goto 10
-    match = this%ptn2%match(src)
+    match => this%ptn2%match(src)
     if (.not.match%isMatch) goto 10
 
-    match = newMatchLoc(src)
+    match => newMatchLoc(src)
     return
 10  continue
     ! On failure reset to start
-    match = noMatch(src, start)
+    match => noMatch(src, start)
   end function PatternTimesT_match
 
   !============================================================================
   ! PatternTimesT
   !============================================================================
 
-  function PatternPower(ptn, n) result(ptn)
+  function PatternPower(ptn, n) result(rptn)
 !
 ! Create a pattern for P**n
 !
     class(PatternT),     pointer :: ptn
     integer                      :: n
-    type(PatternPowerT), pointer :: ptn
+    type(PatternPowerT), pointer :: rptn
 
-    allocate(ptn)
-    ptn%ptn => ptn
-    ptn%n = n
+    allocate(rptn)
+    rptn%ptn => ptn
+    rptn%n = n
   end function PatternPower
 
   !============================================================================
 
   function PatternPowerT_match(this, src) result(match)
-    class(PatternTimesT) :: this
-    class(SourceT)       :: src
-    class(MatchT)        :: match
+    class(PatternPowerT)   :: this
+    class(SourceT)         :: src
+    class(MatchT), pointer :: match
     integer :: start, i
-    logical :: reset
 
     start = src%getLoc()
     if (this%n >=0) then
       i = 0
       do
-        match = this%ptn%match(src)
+        match => this%ptn%match(src)
         if (.not.match%isMatch) then
           if (i < this%n) goto 10
-          match = newMatchLoc(src)
+          match => newMatchLoc(src)
           return
         end if
         i = i + 1
@@ -432,9 +430,9 @@ contains
     else
       i = 0
       do
-        match = this%ptn%match(src)
+        match => this%ptn%match(src)
         if (.not.match%isMatch .or. i == abs(this%n)) then
-          match = newMatchLoc(src)
+          match => newMatchLoc(src)
           return
         end if
       end do
@@ -443,7 +441,7 @@ contains
 
 10  continue
     ! On failure reset to start
-    match = noMatch(src, start)
+    match => noMatch(src, start)
   end function PatternPowerT_match
 
   !============================================================================

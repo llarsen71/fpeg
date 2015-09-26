@@ -1,16 +1,12 @@
 program main
   use fpeg
   implicit none
-  type(PstrT), pointer :: ps
-  class(MatchT), pointer :: matchi
+  class(PatternT), pointer :: ps
+  integer :: matchi
 
-  ps => Pstr("test")
+  ps => R('az')**0
 
-  matchi => ps%match(newStringSrc("test 123"))
-  select type(matchi)
-  type is (MatchLocT)
-    write(*,*) matchi%loc
-  end select
+  matchi = ps%match(newStringSrc("tes1testasdf t"))
+  write(*,*) matchi
   continue
-
 end

@@ -59,20 +59,7 @@ module fpeg
   end type StringSrcT
 
   !----------------------------------------------------------------------------
-
-  type :: MatchT
-    logical :: isMatch = .false.
-    !class(Source), pointer :: src => NULL()
-  end type MatchT
-
-  type(MatchT), target :: no_match
-
-  !----------------------------------------------------------------------------
-
-  type, extends(MatchT) :: MatchLocT
-    integer :: loc = -1
-  end type MatchLocT
-
+  ! PatternT
   !----------------------------------------------------------------------------
 
   type, abstract :: PatternT
@@ -83,14 +70,44 @@ module fpeg
   !----------------------------------------------------------------------------
 
   abstract interface
-    function match(this, src) result(match1)
-      import :: PatternT, SourceT, MatchT
-      class(PatternT)        :: this
-      class(SourceT)         :: src
-      class(MatchT), pointer :: match1
+    function match(this, src) result(idxend)
+      import :: PatternT, SourceT
+      class(PatternT) :: this
+      class(SourceT)  :: src
+      integer         :: idxend
     end function match
   end interface
 
+  ! Convenience value that indicates no match was found
+  integer, parameter :: NO_MATCH = -1
+
+  !----------------------------------------------------------------------------
+
+  interface operator(+)
+    procedure PatternPlus
+  end interface
+
+  !----------------------------------------------------------------------------
+
+  interface operator(-)
+    procedure PatternNeg
+    procedure PatternMinus
+  end interface
+
+  !----------------------------------------------------------------------------
+
+  interface operator(*)
+    procedure PatternTimes
+  end interface
+
+  !----------------------------------------------------------------------------
+
+  interface operator (**)
+    procedure PatternPower
+  end interface
+
+  !----------------------------------------------------------------------------
+  ! PatternT objects
   !----------------------------------------------------------------------------
 
   type, extends(PatternT) :: PstrT
@@ -110,12 +127,37 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  type, extends(PatternT) :: ST
+    character, allocatable :: chrs(:)
+  contains
+    procedure :: match => ST_match
+  end type ST
+
+  !----------------------------------------------------------------------------
+
+  type, extends(PatternT) :: RT
+    character :: rng(2)
+  contains
+    procedure :: match => RT_match
+  end type RT
+
+  !----------------------------------------------------------------------------
+
   type, extends(PatternT) :: PatternPlusT
     class(PatternT), pointer :: ptn1
     class(PatternT), pointer :: ptn2
   contains
     procedure :: match => PatternPlusT_match
   end type PatternPlusT
+
+  !----------------------------------------------------------------------------
+
+  type, extends(PatternT) :: PatternMinusT
+    class(PatternT), pointer :: ptn1
+    class(PatternT), pointer :: ptn2
+  contains
+    procedure :: match => PatternMinusT_match
+  end type PatternMinusT
 
   !----------------------------------------------------------------------------
 
@@ -137,9 +179,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
-  !interface P
-  !  module procedure Pstr, Pn
-  !end interface
+  interface P
+    module procedure Pstr, Pn
+  end interface
 
 contains
 
@@ -218,31 +260,27 @@ contains
   end function StringSrcT_getStr
 
   !============================================================================
-  ! MatchLocT
+  ! Match
   !============================================================================
 
-  function newMatchLoc(src) result(matchloc)
-    class(SourceT)           :: src
-    type(MatchLocT), pointer :: matchloc
-    type(MatchLocT), target  :: matchloc1
-
-    matchloc1%loc = src%getLoc()
-    matchloc1%isMatch = .true.
-    matchloc => matchloc1
-    write(*,*) matchloc%loc
-  end function newMatchLoc
-
-  !============================================================================
-
-  function noMatch(src, reset) result(match)
-    class(SourceT)         :: src
-    integer                :: reset
-    class(MatchT), pointer :: match
+  function noMatch(src, loc) result(match)
+    class(SourceT) :: src
+    integer        :: loc
+    integer        :: match
     logical :: success
 
-    success = src%setLoc(reset)
-    match => no_match
+    success = src%setLoc(loc)
+    match   = NO_MATCH
   end function noMatch
+
+  !============================================================================
+
+  function isMatch(match)
+    integer :: match
+    logical :: isMatch
+
+    isMatch = (match > 0)
+  end function isMatch
 
   !============================================================================
   ! PstrT
@@ -252,20 +290,22 @@ contains
 !
 ! Create a string pattern
 !
-    character*(*) :: string
-    type(PstrT), pointer :: ptn
+    character*(*)            :: string
+    class(PatternT), pointer :: ptn
+    type(PstrT), pointer :: pstr1
 
-    allocate(ptn)
-    ptn%string = string
-    ptn%sz     = len(string)
+    allocate(pstr1)
+    pstr1%string = string
+    pstr1%sz     = len(string)
+    ptn => pstr1
   end function Pstr
 
   !============================================================================
 
   function PstrT_match(this, src) result(match)
-    class(PstrT)           :: this
-    class(SourceT)         :: src
-    class(MatchT), pointer :: match
+    class(PstrT)   :: this
+    class(SourceT) :: src
+    integer        :: match
     integer :: start, i
     character :: c
 
@@ -274,10 +314,10 @@ contains
       if (.not.src%getChr(c)) goto 10
       if (c .ne. this%string(i:i)) goto 10
     end do
-    match => newMatchLoc(src)
+    match = src%getLoc()
     return
 10  continue
-    match => noMatch(src, start)
+    match = noMatch(src, start)
   end function PstrT_match
 
   !============================================================================
@@ -289,18 +329,20 @@ contains
 ! Create a pattern to absorb n values.
 !
     integer :: n
-    type(PnT), pointer :: ptn
+    class(PatternT), pointer :: ptn
+    type(PnT), pointer :: pn1
 
-    allocate(ptn)
-    ptn%n = n
+    allocate(pn1)
+    pn1%n = n
+    ptn => pn1
   end function Pn
 
   !============================================================================
 
   function PnT_match(this, src) result(match)
-    class(PnT)             :: this
-    class(SourceT)         :: src
-    class(MatchT), pointer :: match
+    class(PnT)     :: this
+    class(SourceT) :: src
+    integer        :: match
     integer :: start
     logical :: reset
 
@@ -310,11 +352,96 @@ contains
     reset = src%setLoc(start+this%n)
     if (.not.reset) goto 10
 
-    match => newMatchLoc(src)
+    match = src%getLoc()
     return
 10  continue
-    match => noMatch(src, start)
+    match = noMatch(src, start)
   end function PnT_match
+
+  !============================================================================
+  ! S
+  !============================================================================
+
+  function S(set) result(ptn)
+!
+! Create a pattern that matches values in set
+!
+    character*(*)            :: set
+    class(PatternT), pointer :: ptn
+    type(ST), pointer :: pset
+    integer :: i
+
+    allocate(pset)
+    allocate(pset%chrs(len(set)))
+    do i = 1, len(set)
+      pset%chrs(i) = set(i:i)
+    end do
+    ptn => pset
+  end function S
+
+  !============================================================================
+
+  function ST_match(this, src) result(match)
+    class(ST)      :: this
+    class(SourceT) :: src
+    integer        :: match
+    integer :: start, i
+    character :: c
+
+    start = src%getLoc()
+
+    ! Look for a match in set.
+    if (src%getChr(c)) then
+      do i = 1, size(this%chrs)
+        if (c == this%chrs(i)) goto 10
+      end do
+    end if
+    match = noMatch(src, start)
+    return
+
+    ! Match found
+10  match = src%getLoc()
+  end function ST_match
+
+  !============================================================================
+  ! R
+  !============================================================================
+
+  function R(rng) result(ptn)
+!
+! Create a pattern that matches values in range
+!
+    character*2              :: rng
+    class(PatternT), pointer :: ptn
+    type(RT), pointer :: prng
+
+    allocate(prng)
+    prng%rng(1) = rng(1:1)
+    prng%rng(2) = rng(2:2)
+    ptn => prng
+  end function R
+
+  !============================================================================
+
+  function RT_match(this, src) result(match)
+    class(RT)      :: this
+    class(SourceT) :: src
+    integer        :: match
+    integer :: start
+    character :: c
+
+    start = src%getLoc()
+
+    ! Look for a match in set.
+    if (src%getChr(c)) then
+      if (this%rng(1) <= c .and. c <= this%rng(2)) goto 10
+    end if
+    match = noMatch(src, start)
+    return
+
+    ! Match found
+10  match = src%getLoc()
+  end function RT_match
 
   !============================================================================
   ! PatternPlusT
@@ -324,34 +451,98 @@ contains
 !
 ! Create a string pattern
 !
-    class(PatternT),    pointer :: ptn1, ptn2
-    type(PatternPlusT), pointer :: ptn
+    class(PatternT), pointer, intent(in) :: ptn1, ptn2
+    class(PatternT), pointer             :: ptn
+    type(PatternPlusT), pointer :: pls
 
-    allocate(ptn)
-    ptn%ptn1 => ptn1
-    ptn%ptn2 => ptn2
+    allocate(pls)
+    pls%ptn1 => ptn1
+    pls%ptn2 => ptn2
+    ptn => pls
   end function PatternPlus
 
   !============================================================================
 
   function PatternPlusT_match(this, src) result(match)
-    class(PatternPlusT)    :: this
-    class(SourceT)         :: src
-    class(MatchT), pointer :: match
+    class(PatternPlusT) :: this
+    class(SourceT)      :: src
+    integer             :: match
     integer :: start
 
     start = src%getLoc()
-    match => this%ptn1%match(src)
-    if (match%isMatch) goto 10
-    match => this%ptn2%match(src)
-    if (match%isMatch) goto 10
+    match = this%ptn1%match(src)
+    if (isMatch(match)) return
+    match = this%ptn2%match(src)
+    if (isMatch(match)) goto 10
 
-    match => noMatch(src, start)
+    match = noMatch(src, start)
     return
 
-10  continue
-    match => newMatchLoc(src)
+    ! On success set match loc
+10  match = src%getLoc()
   end function PatternPlusT_match
+
+  !============================================================================
+  ! PatternMinusT
+  !============================================================================
+
+  function PatternMinus(ptn1, ptn2) result(ptn)
+!
+! Create a subtraction object
+!
+    class(PatternT), pointer, intent(in) :: ptn1, ptn2
+    class(PatternT), pointer             :: ptn
+    type(PatternMinusT), pointer :: mns
+
+    allocate(mns)
+    mns%ptn1 => ptn1
+    mns%ptn2 => ptn2
+    ptn => mns
+  end function PatternMinus
+
+  !============================================================================
+
+  function PatternNeg(ptnmns) result(ptn)
+!
+! Create a subtraction object
+!
+    class(PatternT), pointer, intent(in) :: ptnmns
+    class(PatternT), pointer             :: ptn
+    type(PatternMinusT), pointer :: mns
+
+    allocate(mns)
+    nullify(mns%ptn1)
+    mns%ptn2 => ptnmns
+    ptn => mns
+  end function PatternNeg
+
+  !============================================================================
+
+  function PatternMinusT_match(this, src) result(match)
+    class(PatternMinusT) :: this
+    class(SourceT)       :: src
+    integer              :: match
+    integer :: start
+
+    start = src%getLoc()
+
+    ! Check that it doesn't match pattern 2
+    match = this%ptn2%match(src)
+    if (isMatch(match)) goto 10 ! negate the match
+
+    ! Check that it does match pattern 1
+    ! If pattern 1 is missing assume a match
+    if (associated(this%ptn1)) then
+      match = this%ptn1%match(src)
+      if (.not.isMatch(match)) goto 10
+    end if
+
+    match = src%getLoc()
+    return
+
+    ! On success set match loc
+10  match = noMatch(src, start)
+  end function PatternMinusT_match
 
   !============================================================================
   ! PatternTimesT
@@ -361,33 +552,34 @@ contains
 !
 ! Create a string pattern
 !
-    class(PatternT),     pointer :: ptn1, ptn2
-    type(PatternTimesT), pointer :: ptn
+    class(PatternT), pointer, intent(in) :: ptn1, ptn2
+    class(PatternT), pointer             :: ptn
+    type(PatternTimesT), pointer :: tms
 
-    allocate(ptn)
-    ptn%ptn1 => ptn1
-    ptn%ptn2 => ptn2
+    allocate(tms)
+    tms%ptn1 => ptn1
+    tms%ptn2 => ptn2
+    ptn => tms
   end function PatternTimes
 
   !============================================================================
 
   function PatternTimesT_match(this, src) result(match)
-    class(PatternTimesT)   :: this
-    class(SourceT)         :: src
-    class(MatchT), pointer :: match
+    class(PatternTimesT) :: this
+    class(SourceT)       :: src
+    integer              :: match
     integer :: start
 
     start = src%getLoc()
-    match => this%ptn1%match(src)
-    if (.not.match%isMatch) goto 10
-    match => this%ptn2%match(src)
-    if (.not.match%isMatch) goto 10
-
-    match => newMatchLoc(src)
+    match = this%ptn1%match(src)
+    if (.not.isMatch(match)) goto 10
+    match = this%ptn2%match(src)
+    if (.not.isMatch(match)) goto 10
+    match = src%getLoc()
     return
-10  continue
+
     ! On failure reset to start
-    match => noMatch(src, start)
+10  match = noMatch(src, start)
   end function PatternTimesT_match
 
   !============================================================================
@@ -398,60 +590,61 @@ contains
 !
 ! Create a pattern for P**n
 !
-    class(PatternT),     pointer :: ptn
-    integer                      :: n
-    type(PatternPowerT), pointer :: rptn
+    class(PatternT), pointer, intent(in) :: ptn
+    integer,                  intent(in) :: n
+    class(PatternT), pointer             :: rptn
+    type(PatternPowerT), pointer :: pwr
 
-    allocate(rptn)
-    rptn%ptn => ptn
-    rptn%n = n
+    allocate(pwr)
+    pwr%ptn => ptn
+    pwr%n = n
+    rptn => pwr
   end function PatternPower
 
   !============================================================================
 
   function PatternPowerT_match(this, src) result(match)
-    class(PatternPowerT)   :: this
-    class(SourceT)         :: src
-    class(MatchT), pointer :: match
-    integer :: start, i
+    class(PatternPowerT) :: this
+    class(SourceT)       :: src
+    integer              :: match
+    integer :: start, i, matcho
 
+    matcho = NO_MATCH
     start = src%getLoc()
     if (this%n >=0) then
       i = 0
       do
-        match => this%ptn%match(src)
-        if (.not.match%isMatch) then
+        match = this%ptn%match(src)
+        if (.not.isMatch(match)) then
           if (i < this%n) goto 10
-          match => newMatchLoc(src)
+          match = src%getLoc()
+          return
+        else if (match == matcho) then
+          ! Pattern didn't consume input
+          match = src%getLoc()
           return
         end if
+        matcho = match
         i = i + 1
       end do
     else
       i = 0
       do
-        match => this%ptn%match(src)
-        if (.not.match%isMatch .or. i == abs(this%n)) then
-          match => newMatchLoc(src)
+        match = this%ptn%match(src)
+        if (.not.isMatch(match) .or. i == abs(this%n) .or. match == matcho) then
+          match = src%getLoc()
           return
         end if
+        match = matcho
+        i = i + 1
       end do
-      i = i + 1
     end if
+    return
 
-10  continue
     ! On failure reset to start
-    match => noMatch(src, start)
+10  match = noMatch(src, start)
   end function PatternPowerT_match
 
   !============================================================================
-  !============================================================================
 
-  !function S()
-  !end function S
-
-  !============================================================================
-
-
-  !============================================================================
 end module fpeg

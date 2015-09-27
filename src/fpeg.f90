@@ -183,16 +183,61 @@ module fpeg
   end interface
 
   !----------------------------------------------------------------------------
+  ! Captures
+  !----------------------------------------------------------------------------
 
-  type :: CaptureT
-    integer :: idx1, idx2
-    class(SourceT), pointer :: src
-    type(CaptureT), pointer :: next => NULL()
+  type FieldsT
+    character(len=:), allocatable :: name
+    character(len=:), pointer     :: value
+    type(FieldsT), pointer        :: next => NULL()
   contains
-    procedure :: getValue   => CaptureT_getValue
-    procedure :: getNext    => CaptureT_getNext
-    procedure :: addCapture => CaptureT_addCapture
-  end type CaptureT
+    procedure :: getValue => FieldsT_getValue
+    procedure :: setValue => FieldsT_setValue
+  end type FieldsT
+
+  !----------------------------------------------------------------------------
+
+  type ListT
+    class(*), pointer     :: value
+    type(ListT), pointer  :: next => NULL()
+  contains
+    procedure :: getValue => ListT_getValue
+    procedure :: setValue => ListT_setValue
+  end type ListT
+
+  !----------------------------------------------------------------------------
+
+  type TableT
+    type(FieldsT), pointer :: fields => NULL()
+    type(ListT),   pointer :: items  => NULL()
+  contains
+    procedure :: setFieldValue => TableT_setFieldValue
+    procedure :: setItemValue  => TableT_setItemValue
+    procedure :: getItemValue  => TableT_getItemValue
+    procedure :: getFieldValue => TableT_getFieldValue
+    generic :: setValue => setFieldValue, setItemValue
+    generic :: getValue => getItemValue, getFieldValue
+  end type TableT
+
+  !----------------------------------------------------------------------------
+
+  type CaptureT
+    class(SourceT), pointer :: src
+    integer :: idx1, idx2
+  contains
+    procedure :: getValue => CaptureT_getValue
+  end Type CaptureT
+
+  !----------------------------------------------------------------------------
+
+  type CapturesT
+    class(TableT), pointer :: tbl
+  contains
+    procedure :: addCapture => CapturesT_addCapture
+    procedure :: getCapture => CapturesT_getCapture
+    procedure :: addField   => CapturesT_addField
+    procedure :: getField   => CapturesT_getField
+  end Type CapturesT
 
   !----------------------------------------------------------------------------
 
@@ -659,52 +704,133 @@ contains
   end function PatternPowerT_match
 
   !============================================================================
+  ! FieldsT
+  !============================================================================
+
+  function FieldsT_getValue(this, name) result(success)
+    class(FieldsT) :: this
+    character*(*)  :: name
+    logical       :: success
+  end function FieldsT_getValue
+
+  !============================================================================
+
+  subroutine FieldsT_setValue(this, name, value)
+    class(FieldsT) :: this
+    character*(*)  :: name, value
+  end subroutine FieldsT_setValue
+
+
+  !============================================================================
+  ! ListT
+  !============================================================================
+
+  function ListT_getValue(this, i) result(success)
+    class(ListT), target :: this
+    integer             :: i
+    logical             :: success
+    type(ListT), pointer :: curr
+
+  end function ListT_getValue
+
+  !============================================================================
+
+  subroutine ListT_setValue(this, name, value)
+    class(ListT)  :: this
+    character*(*) :: name, value
+  end subroutine ListT_setValue
+
+  !============================================================================
+  ! TableT
+  !============================================================================
+
+  function TableT_getItemValue(this, i) result(success)
+    class(TableT) :: this
+    integer       :: i
+    logical       :: success
+  end function TableT_getItemValue
+
+  !============================================================================
+
+  function TableT_getFieldValue(this, name, value) result(success)
+    class(TableT)             :: this
+    character*(*)             :: name
+    character(len=:), pointer :: value
+    logical                   :: success
+  end function TableT_getFieldValue
+
+  !============================================================================
+
+  subroutine TableT_setFieldValue(this, name, value)
+    class(TableT) :: this
+    character*(*) :: name, value
+
+    call this%fields%setValue(name, value)
+  end subroutine TableT_setFieldValue
+
+  !============================================================================
+
+  subroutine TableT_setItemValue(this, i, value)
+    class(TableT) :: this
+    integer       :: i
+    class(*)      :: value
+  end subroutine TableT_setItemValue
+
+  !============================================================================
   ! CaptureT
   !============================================================================
 
-  function CaptureT_getValue(this, string) result(success)
+  subroutine CaptureT_getValue(this, string)
+  !
+  ! Get a capture string from the SourceT.
+  !
     class(CaptureT)               :: this
     character(len=:), allocatable :: string
-    logical                       :: success
     integer :: sz
+    logical :: success
 
     sz = this%idx2 - this%idx1 + 1
     if (sz < 0) return
     allocate(character(this%idx2 - this%idx1 + 1) :: string)
     success = this%src%getStr(this%idx1, this%idx2, string)
-  end function CaptureT_getValue
+  end subroutine CaptureT_getValue
+
+  !============================================================================
+  ! CapturesT
+  !============================================================================
+
+  subroutine CapturesT_addCapture(this, idx1, idx2)
+    class(CapturesT) :: this
+    integer          :: idx1, idx2
+  end subroutine CapturesT_addCapture
 
   !============================================================================
 
-  function CaptureT_getNext(this, capt) result(success)
-    class(CaptureT)          :: this
-    class(CaptureT), pointer :: capt
-    logical                  :: success
-
-    capt => this%next
-    success = associated(capt)
-  end function CaptureT_getNext
+  function CapturesT_getCapture(this, i) result(success)
+    class(CapturesT) :: this
+    integer          :: i
+    logical          :: success
+  end function CapturesT_getCapture
 
   !============================================================================
 
-  function CaptureT_addCapture(this, idx1, idx2) result(capt)
-    class(CaptureT), target :: this
-    integer         :: idx1, idx2
-    class(CaptureT), pointer :: capt
+  subroutine CapturesT_addField(this, name, value)
+    class(CapturesT) :: this
+    character*(*)    :: name, value
 
-    capt => this
-    do
-      if (.not.associated(capt%next)) then
-        allocate(capt%next)
-        capt => capt%next
-        capt%src => this%src
-        capt%idx1 = idx1
-        capt%idx2 = idx2
-        return
-      end if
-      capt => capt%next
-    end do
-  end function CaptureT_addCapture
+    call this%tbl%setValue(name, value)
+  end subroutine CapturesT_addField
+
+  !============================================================================
+
+  function CapturesT_getField(this, name, value) result(success)
+    class(CapturesT)          :: this
+    character*(*)             :: name
+    character(len=:), pointer :: value
+    logical                   :: success
+
+    success = this%tbl%getValue(name, value)
+  end function CapturesT_getField
 
   !============================================================================
 

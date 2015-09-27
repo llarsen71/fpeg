@@ -1,3 +1,22 @@
+! Copyright (c) 2015 Lance Larsen
+!
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is furnished
+! to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in
+! all copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+! WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+! IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 module fpeg
   implicit none
 
@@ -49,7 +68,7 @@ module fpeg
 
   type, extends(SourceT) :: StringSrcT
     character(len=:), allocatable :: string
-    integer          :: loc
+    integer                       :: loc
   contains
     procedure :: getLoc => StringSrcT_getLoc
     procedure :: setLoc => StringSrcT_setLoc
@@ -110,8 +129,7 @@ module fpeg
   !----------------------------------------------------------------------------
 
   type, extends(PatternT) :: PstrT
-    character(len=100), allocatable :: string
-    integer          :: sz
+    character(len=:), allocatable :: string
   contains
     procedure :: match => PstrT_match
   end type PstrT
@@ -188,9 +206,10 @@ module fpeg
 
   type FieldsT
     character(len=:), allocatable :: name
-    character(len=:), pointer     :: value
+    class(*), pointer             :: value
     type(FieldsT), pointer        :: next => NULL()
   contains
+    procedure :: getField => FieldsT_getField
     procedure :: getValue => FieldsT_getValue
     procedure :: setValue => FieldsT_setValue
   end type FieldsT
@@ -201,6 +220,7 @@ module fpeg
     class(*), pointer     :: value
     type(ListT), pointer  :: next => NULL()
   contains
+    procedure :: getItem  => ListT_getItem
     procedure :: getValue => ListT_getValue
     procedure :: setValue => ListT_setValue
   end type ListT
@@ -215,7 +235,6 @@ module fpeg
     procedure :: setItemValue  => TableT_setItemValue
     procedure :: getItemValue  => TableT_getItemValue
     procedure :: getFieldValue => TableT_getFieldValue
-    generic :: setValue => setFieldValue, setItemValue
     generic :: getValue => getItemValue, getFieldValue
   end type TableT
 
@@ -237,6 +256,7 @@ module fpeg
     procedure :: getCapture => CapturesT_getCapture
     procedure :: addField   => CapturesT_addField
     procedure :: getField   => CapturesT_getField
+    generic :: getValue => getCapture, getField
   end Type CapturesT
 
   !----------------------------------------------------------------------------
@@ -244,16 +264,30 @@ module fpeg
 contains
 
   !============================================================================
+  ! Match
+  !============================================================================
+
+  function match_string(pattern, string) result(loc)
+    class(PatternT) :: pattern
+    character*(*)   :: string
+    integer         :: loc
+    type(StringSrcT):: src
+
+    src = newStringSrc(string)
+    loc = pattern%match(src)
+  end function match_string
+
+  !============================================================================
   ! StringSrcT
   !============================================================================
 
-  function newStringSrc(string) result(stringSrc)
+  function newStringSrc(string) result(src)
     character*(*)    :: string
-    type(StringSrcT) :: stringSrc
+    type(StringSrcT) :: src
 
-    allocate(character(len(string)) :: stringSrc%string)
-    stringSrc%string = string
-    stringSrc%loc    = 1
+    allocate(character(len(string)) :: src%string)
+    src%string = string
+    src%loc    = 1
   end function newStringSrc
 
   !============================================================================
@@ -353,8 +387,8 @@ contains
     type(PstrT), pointer :: pstr1
 
     allocate(pstr1)
+    allocate(character(len(string)) :: pstr1%string)
     pstr1%string = string
-    pstr1%sz     = len(string)
     ptn => pstr1
   end function Pstr
 
@@ -368,7 +402,7 @@ contains
     character :: c
 
     start = src%getLoc()
-    do i = 1, this%sz
+    do i = 1, len(this%string)
       if (.not.src%getChr(c)) goto 10
       if (c .ne. this%string(i:i)) goto 10
     end do
@@ -707,74 +741,182 @@ contains
   ! FieldsT
   !============================================================================
 
-  function FieldsT_getValue(this, name) result(success)
-    class(FieldsT) :: this
-    character*(*)  :: name
-    logical       :: success
+  function FieldsT_getField(this, name, field) result(success)
+    class(FieldsT), target  :: this
+    character*(*)           :: name
+    class(FieldsT), pointer :: field
+    logical                 :: success
+
+    field => this
+    do
+      if (.not.associated(field)) exit
+      if (field%name == name) then
+        success = .true.
+        return
+      end if
+      field => field%next
+    end do
+
+    ! Failed to find field with the given name
+    nullify(field)
+    success = .false.
+  end function FieldsT_getField
+
+  !============================================================================
+
+  function FieldsT_getValue(this, name, value) result(success)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    class(*), pointer      :: value
+    logical                :: success
+    class(FieldsT), pointer :: field
+
+    success = .false.
+    if (.not.this%getField(name, field)) return
+
+    value => field%value
+    success = .true.
   end function FieldsT_getValue
 
   !============================================================================
 
   subroutine FieldsT_setValue(this, name, value)
-    class(FieldsT) :: this
-    character*(*)  :: name, value
-  end subroutine FieldsT_setValue
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    class(*), pointer      :: value
+    class(FieldsT), pointer :: field
+    logical :: success
 
+    success = this%getField(name, field)
+
+    ! If no field create one at end of list
+    if (.not.success) then
+      field => this
+      do while(associated(field%next))
+        field => field%next
+      end do
+      allocate(field%next)
+      field => field%next
+    end if
+
+    field%value => value
+  end subroutine FieldsT_setValue
 
   !============================================================================
   ! ListT
   !============================================================================
 
-  function ListT_getValue(this, i) result(success)
-    class(ListT), target :: this
-    integer             :: i
-    logical             :: success
-    type(ListT), pointer :: curr
+  function ListT_getItem(this, idx, item) result(success)
+!
+! Get list item at index. 0 indicates last item in list
+!
+    class(ListT), target  :: this
+    integer               :: idx
+    class(ListT), pointer :: item
+    logical               :: success
+    integer :: i
 
+    nullify(item)
+    success = .false.
+    if (idx < 0) return
+
+    item => this
+    i = 1
+    do
+      if (i == idx .or. &
+          (idx == 0 .and. .not.associated(item%next))) then
+        success = .true.
+        return
+      end if
+
+      item => item%next
+      if (.not.associated(item)) return
+    end do
+  end function ListT_getItem
+
+  !============================================================================
+
+  function ListT_getValue(this, idx, value) result(success)
+    class(ListT), target :: this
+    integer              :: idx
+    class(*), pointer    :: value
+    logical              :: success
+    class(ListT), pointer :: item
+
+    nullify(value)
+    success = this%getItem(idx, item)
+    if (.not.success) return
+    value => item%value
   end function ListT_getValue
 
   !============================================================================
 
-  subroutine ListT_setValue(this, name, value)
-    class(ListT)  :: this
-    character*(*) :: name, value
-  end subroutine ListT_setValue
+  function ListT_setValue(this, idx, value) result(success)
+    class(ListT)      :: this
+    integer           :: idx
+    class(*), pointer :: value
+    logical           :: success
+    class(ListT), pointer :: item
+    integer :: idx1
+
+    idx1 = idx-1
+    if (idx == 0) idx1 = 0
+
+    success = this%getItem(idx1, item)
+    if (.not.success) return
+
+    ! Add item to list if needed
+    if (.not.associated(item%next)) then
+      allocate(item%next)
+      item => item%next
+    end if
+    item%value => value
+  end function ListT_setValue
 
   !============================================================================
   ! TableT
   !============================================================================
 
-  function TableT_getItemValue(this, i) result(success)
-    class(TableT) :: this
-    integer       :: i
-    logical       :: success
+  function TableT_getItemValue(this, idx, value) result(success)
+    class(TableT)     :: this
+    integer           :: idx
+    class(*), pointer :: value
+    logical           :: success
+
+    success = this%items%getValue(idx, value)
   end function TableT_getItemValue
 
   !============================================================================
 
   function TableT_getFieldValue(this, name, value) result(success)
-    class(TableT)             :: this
-    character*(*)             :: name
-    character(len=:), pointer :: value
-    logical                   :: success
+    class(TableT)     :: this
+    character*(*)     :: name
+    class(*), pointer :: value
+    logical           :: success
+
+    success = this%fields%getValue(name, value)
   end function TableT_getFieldValue
 
   !============================================================================
 
   subroutine TableT_setFieldValue(this, name, value)
-    class(TableT) :: this
-    character*(*) :: name, value
+    class(TableT)     :: this
+    character*(*)     :: name
+    class(*), pointer :: value
 
     call this%fields%setValue(name, value)
   end subroutine TableT_setFieldValue
 
   !============================================================================
 
-  subroutine TableT_setItemValue(this, i, value)
-    class(TableT) :: this
-    integer       :: i
-    class(*)      :: value
-  end subroutine TableT_setItemValue
+  function TableT_setItemValue(this, idx, value) result(success)
+    class(TableT)     :: this
+    integer           :: idx
+    class(*), pointer :: value
+    logical           :: success
+
+    success = this%items%setValue(idx, value)
+  end function TableT_setItemValue
 
   !============================================================================
   ! CaptureT
@@ -815,21 +957,22 @@ contains
   !============================================================================
 
   subroutine CapturesT_addField(this, name, value)
-    class(CapturesT) :: this
-    character*(*)    :: name, value
+    class(CapturesT)  :: this
+    character*(*)     :: name
+    class(*), pointer :: value
 
-    call this%tbl%setValue(name, value)
+    call this%tbl%setFieldValue(name, value)
   end subroutine CapturesT_addField
 
   !============================================================================
 
   function CapturesT_getField(this, name, value) result(success)
-    class(CapturesT)          :: this
-    character*(*)             :: name
-    character(len=:), pointer :: value
-    logical                   :: success
+    class(CapturesT)  :: this
+    character*(*)     :: name
+    class(*), pointer :: value
+    logical           :: success
 
-    success = this%tbl%getValue(name, value)
+    success = this%tbl%getFieldValue(name, value)
   end function CapturesT_getField
 
   !============================================================================

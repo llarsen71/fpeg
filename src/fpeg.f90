@@ -250,7 +250,8 @@ module fpeg
   !----------------------------------------------------------------------------
 
   type CapturesT
-    class(TableT), pointer :: tbl
+    class(TableT),  pointer :: tbl
+    class(SourceT), pointer :: src
   contains
     procedure :: addCapture => CapturesT_addCapture
     procedure :: getCapture => CapturesT_getCapture
@@ -944,14 +945,38 @@ contains
   subroutine CapturesT_addCapture(this, idx1, idx2)
     class(CapturesT) :: this
     integer          :: idx1, idx2
+    class(CaptureT), pointer :: capt
+    class(*), pointer :: value
+    logical :: success
+
+    allocate(capt)
+    capt%idx1 = idx1
+    capt%idx2 = idx2
+    capt%src => this%src
+
+    value => capt
+    success = this%tbl%setItemValue(0, value)
   end subroutine CapturesT_addCapture
 
   !============================================================================
 
-  function CapturesT_getCapture(this, i) result(success)
-    class(CapturesT) :: this
-    integer          :: i
-    logical          :: success
+  function CapturesT_getCapture(this, idx, string) result(success)
+    class(CapturesT)              :: this
+    integer                       :: idx
+    character(len=:), allocatable :: string
+    logical                       :: success
+    class(*), pointer :: value
+
+    success = this%tbl%getItemValue(idx, value)
+    if (.not.success) return
+
+    select type(value)
+    type is (CaptureT)
+      allocate(character(value%idx2-value%idx1+1) :: string)
+      success = value%src%getStr(value%idx1, value%idx2, string)
+      return
+    end select
+    success = .false.
   end function CapturesT_getCapture
 
   !============================================================================

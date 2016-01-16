@@ -1,24 +1,15 @@
 program main
-  use fpeg
+  use fruit
+  !use TableTest, only: TableTestSuite
+  use fpegTest,  only: fpegTestSuite
   implicit none
-  class(PatternT), pointer :: alpha, set, literal, srch
-  integer :: matchi
 
-  alpha => R('az')**0
-  matchi = match_string(alpha, "this is a test of range and power")
-  write(*,*) matchi
+  call init_fruit()
 
-  set => S('(:-)')**0
-  matchi = match_string(set, "((:--:--:)) bob")
-  write(*,*) matchi
+  !call TableTestSuite()
+  call fpegTestSuite()
 
-  literal => P('rep')**0
-  matchi = match_string(literal, "reprep no more")
-  write(*,*) matchi
-
-  srch => (P(1)-P("test"))**0 * P("test")
-  matchi = match_string(srch, "Search for test and return index after test")
-  write(*,*) matchi
-
+  call fruit_summary()
+  call fruit_finalize()
   continue
 end

@@ -4,13 +4,13 @@
 	<Project>
 		<Option title="fpeg" />
 		<Option pch_mode="2" />
-		<Option compiler="gcc" />
+		<Option compiler="gfortran" />
 		<Build>
 			<Target title="Debug">
 				<Option output="bin/Debug/fpeg" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
-				<Option compiler="gcc" />
+				<Option compiler="gfortran" />
 				<Compiler>
 					<Add option="-g" />
 				</Compiler>
@@ -22,7 +22,7 @@
 				<Option output="bin/Release/fpeg" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
-				<Option compiler="gcc" />
+				<Option compiler="gfortran" />
 				<Compiler>
 					<Add option="-O2" />
 				</Compiler>
@@ -32,12 +32,25 @@
 			</Target>
 		</Build>
 		<Compiler>
+			<Add option="-cpp" />
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename="src/fpeg.f90">
+		<Unit filename="fruit/TableTest.f90">
+			<Option weight="1" />
+		</Unit>
+		<Unit filename="fruit/fpegTest.f90">
 			<Option weight="0" />
 		</Unit>
+		<Unit filename="fruit/fruit.f90">
+			<Option weight="0" />
+		</Unit>
+		<Unit filename="src/fpeg.f90">
+			<Option weight="1" />
+		</Unit>
 		<Unit filename="src/main.f90">
+			<Option weight="2" />
+		</Unit>
+		<Unit filename="src/table.f90">
 			<Option weight="0" />
 		</Unit>
 		<Extensions>

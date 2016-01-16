@@ -22,6 +22,15 @@ module fpeg
   implicit none
 
   !----------------------------------------------------------------------------
+  ! A SourceT provides access to a string for performing fpeg pattern matching.
+  ! The source may be a direct string, or some string source such as a file.
+  ! The supported methods are:
+  !
+  ! getLoc - Get the current location in the string
+  ! setLoc - Set the location to the given location in the string
+  ! getChr - Get the next character from the string and increment the location
+  ! getStr - Get a substring from the string
+  !----------------------------------------------------------------------------
 
   type, abstract :: SourceT
   contains
@@ -65,6 +74,8 @@ module fpeg
     end function getStr
   end interface
 
+  !----------------------------------------------------------------------------
+  ! The following is used when the fpeg source is a string.
   !----------------------------------------------------------------------------
 
   type, extends(SourceT) :: StringSrcT
@@ -129,6 +140,9 @@ module fpeg
   ! PatternT objects
   !----------------------------------------------------------------------------
 
+  !
+  ! Test for exact match of a string value. This is accessed as P('string')
+  !
   type, extends(PatternT) :: PstrT
     character(len=:), allocatable :: string
   contains
@@ -137,6 +151,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Match the next n characters. This is accessed as P(n).
+  !
   type, extends(PatternT) :: PnT
     integer :: n
   contains
@@ -145,6 +162,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Match character in the given set. Accessed as S('abc')
+  !
   type, extends(PatternT) :: ST
     character, allocatable :: chrs(:)
   contains
@@ -153,6 +173,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Match a character within the given range. Accessed as R('az').
+  !
   type, extends(PatternT) :: RT
     character :: rng(2)
   contains
@@ -161,6 +184,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Try to match the first pattern. If this fails try to match the second pattern.
+  !
   type, extends(PatternT) :: PatternPlusT
     class(PatternT), pointer :: ptn1
     class(PatternT), pointer :: ptn2
@@ -170,6 +196,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Match the first pattern only if the second pattern is not a match.
+  !
   type, extends(PatternT) :: PatternMinusT
     class(PatternT), pointer :: ptn1
     class(PatternT), pointer :: ptn2
@@ -179,6 +208,9 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! Match the first pattern followed by the second pattern
+  !
   type, extends(PatternT) :: PatternTimesT
     class(PatternT), pointer :: ptn1
     class(PatternT), pointer :: ptn2
@@ -188,6 +220,10 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  !
+  ! For n>=0, P^n indicates that the pattern should match at least n times.
+  ! P^-n looks for n or less matches of the pattern.
+  !
   type, extends(PatternT) :: PatternPowerT
     class(PatternT), pointer :: ptn
     integer :: n
@@ -234,12 +270,14 @@ contains
   !============================================================================
 
   function match_string(pattern, string) result(loc)
-    class(PatternT) :: pattern
-    character*(*)   :: string
-    integer         :: loc
+    class(PatternT)   :: pattern
+    character*(*)     :: string
+    !integer, optional :: start  ! Causes string to come in bad
+    integer           :: loc
     type(StringSrcT):: src
 
     src = newStringSrc(string)
+    !if (PRESENT(start)) src%loc = start
     loc = pattern%match(src)
   end function match_string
 
@@ -247,6 +285,9 @@ contains
   ! StringSrcT
   !============================================================================
 
+  !
+  ! Create a new string source
+  !
   function newStringSrc(string) result(src)
     character*(*)    :: string
     type(StringSrcT) :: src
@@ -321,6 +362,10 @@ contains
   ! Match
   !============================================================================
 
+  !
+  ! Called if a match fails. Reset the string to the given loc and set match
+  ! value to NO_MATCH.
+  !
   function noMatch(src, loc) result(match)
     class(SourceT) :: src
     integer        :: loc
@@ -333,6 +378,9 @@ contains
 
   !============================================================================
 
+  !
+  ! Check if the returned match index indicated that the match was successful
+  !
   function isMatch(match)
     integer :: match
     logical :: isMatch
@@ -344,10 +392,10 @@ contains
   ! PstrT
   !============================================================================
 
+  !
+  ! Create a new exact string match pattern.
+  !
   function Pstr(string) result(ptn)
-!
-! Create a string pattern
-!
     character*(*)            :: string
     class(PatternT), pointer :: ptn
     type(PstrT), pointer :: pstr1
@@ -382,10 +430,10 @@ contains
   ! PnT
   !============================================================================
 
+  !
+  ! Create a pattern to absorb n values.
+  !
   function Pn(n) result(ptn)
-!
-! Create a pattern to absorb n values.
-!
     integer :: n
     class(PatternT), pointer :: ptn
     type(PnT), pointer :: pn1
@@ -420,10 +468,10 @@ contains
   ! S
   !============================================================================
 
+  !
+  ! Create a pattern that matches values in set
+  !
   function S(set) result(ptn)
-!
-! Create a pattern that matches values in set
-!
     character*(*)            :: set
     class(PatternT), pointer :: ptn
     type(ST), pointer :: pset
@@ -465,10 +513,10 @@ contains
   ! R
   !============================================================================
 
+  !
+  ! Create a pattern that matches values in range
+  !
   function R(rng) result(ptn)
-!
-! Create a pattern that matches values in range
-!
     character*2              :: rng
     class(PatternT), pointer :: ptn
     type(RT), pointer :: prng
@@ -505,10 +553,10 @@ contains
   ! PatternPlusT
   !============================================================================
 
+  !
+  ! Create a string pattern
+  !
   function PatternPlus(ptn1, ptn2) result(ptn)
-!
-! Create a string pattern
-!
     class(PatternT), pointer, intent(in) :: ptn1, ptn2
     class(PatternT), pointer             :: ptn
     type(PatternPlusT), pointer :: pls
@@ -544,10 +592,10 @@ contains
   ! PatternMinusT
   !============================================================================
 
+  !
+  ! Create a subtraction object
+  !
   function PatternMinus(ptn1, ptn2) result(ptn)
-!
-! Create a subtraction object
-!
     class(PatternT), pointer, intent(in) :: ptn1, ptn2
     class(PatternT), pointer             :: ptn
     type(PatternMinusT), pointer :: mns
@@ -560,10 +608,10 @@ contains
 
   !============================================================================
 
+  !
+  ! Create a subtraction object
+  !
   function PatternNeg(ptnmns) result(ptn)
-!
-! Create a subtraction object
-!
     class(PatternT), pointer, intent(in) :: ptnmns
     class(PatternT), pointer             :: ptn
     type(PatternMinusT), pointer :: mns
@@ -606,10 +654,10 @@ contains
   ! PatternTimesT
   !============================================================================
 
+  !
+  ! Create a string pattern
+  !
   function PatternTimes(ptn1, ptn2) result(ptn)
-!
-! Create a string pattern
-!
     class(PatternT), pointer, intent(in) :: ptn1, ptn2
     class(PatternT), pointer             :: ptn
     type(PatternTimesT), pointer :: tms
@@ -644,10 +692,10 @@ contains
   ! PatternTimesT
   !============================================================================
 
+  !
+  ! Create a pattern for P**n
+  !
   function PatternPower(ptn, n) result(rptn)
-!
-! Create a pattern for P**n
-!
     class(PatternT), pointer, intent(in) :: ptn
     integer,                  intent(in) :: n
     class(PatternT), pointer             :: rptn
@@ -674,11 +722,13 @@ contains
       do
         match = this%ptn%match(src)
         if (.not.isMatch(match)) then
+          ! If the match succeeded less than n time
+          ! return a failed match
           if (i < this%n) goto 10
           match = src%getLoc()
           return
         else if (match == matcho) then
-          ! Pattern didn't consume input
+          ! Pattern didn't consume input. The match failed.
           match = src%getLoc()
           return
         end if
@@ -689,12 +739,12 @@ contains
       i = 0
       do
         match = this%ptn%match(src)
+        if (isMatch(match)) i = i + 1
         if (.not.isMatch(match) .or. i == abs(this%n) .or. match == matcho) then
           match = src%getLoc()
           return
         end if
         match = matcho
-        i = i + 1
       end do
     end if
     return
@@ -707,10 +757,10 @@ contains
   ! CaptureT
   !============================================================================
 
-  subroutine CaptureT_getValue(this, string)
   !
   ! Get a capture string from the SourceT.
   !
+  subroutine CaptureT_getValue(this, string)
     class(CaptureT)               :: this
     character(len=:), allocatable :: string
     integer :: sz

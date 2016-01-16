@@ -4,21 +4,29 @@ module Table
   ! FieldsT - An associative array (dictionary, hashtable)
   !----------------------------------------------------------------------------
 
+  ! Store a set of name value pairs. The value can be of any type supported by class(*)
   type FieldsT
     character(len=:), allocatable :: name
     class(*), pointer             :: value
+    logical                       :: autodealloc = .false.
     type(FieldsT), pointer        :: next => NULL()
   contains
     procedure :: getField => FieldsT_getField
     procedure :: getValue => FieldsT_getValue
-    procedure :: setValue => FieldsT_setValue
+    procedure :: setValuePtr => FieldsT_setValuePtr
+    procedure :: setValueA => FieldsT_setValueA
+    procedure :: setValueI => FieldsT_setValueI
+    procedure :: setValueR => FieldsT_setValueR
+    !generic :: setValue => setValueA, setValueI, setValueR
   end type FieldsT
 
   !----------------------------------------------------------------------------
   ! ListT - A dynamic array
   !----------------------------------------------------------------------------
 
+  ! Store a list of values. Value can be any value supported by class(*)
   type ListT
+    logical               :: autodealloc = .false.
     class(*), pointer     :: value
     type(ListT), pointer  :: next => NULL()
   contains
@@ -32,8 +40,8 @@ module Table
   !----------------------------------------------------------------------------
 
   type TableT
-    type(FieldsT), pointer :: fields => NULL()
-    type(ListT),   pointer :: items  => NULL()
+    type(FieldsT), pointer :: fields
+    type(ListT),   pointer :: items
   contains
     procedure :: setFieldValue => TableT_setFieldValue
     procedure :: setItemValue  => TableT_setItemValue
@@ -45,7 +53,6 @@ module Table
   !----------------------------------------------------------------------------
 
 contains
-
 
   !============================================================================
   ! FieldsT
@@ -84,33 +91,80 @@ contains
     success = .false.
     if (.not.this%getField(name, field)) return
 
-    value => field%value
+    value => this%value
     success = .true.
   end function FieldsT_getValue
 
   !============================================================================
 
-  subroutine FieldsT_setValue(this, name, value)
+  subroutine FieldsT_setValuePtr(this, name, value)
     class(FieldsT), target :: this
     character*(*)          :: name
     class(*), pointer      :: value
     class(FieldsT), pointer :: field
-    logical :: success
 
-    success = this%getField(name, field)
-
-    ! If no field create one at end of list
-    if (.not.success) then
-      field => this
-      do while(associated(field%next))
+    field => this
+    do
+      if (field%name == name) exit
+      if (.not.associated(field%next)) then
+        allocate(field%next)
         field => field%next
-      end do
-      allocate(field%next)
+        allocate(character(len(name)) :: field%name)
+        field%name = name
+        exit
+      end if
       field => field%next
-    end if
-
+    end do
     field%value => value
-  end subroutine FieldsT_setValue
+  end subroutine FieldsT_setValuePtr
+
+  !============================================================================
+
+  subroutine FieldsT_setValueA(this, name, value)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    character*(*)          :: value
+    character(len=:), pointer :: A
+    class(*), pointer :: cls
+
+    allocate(character(len(value)) :: A)
+    A = value
+    cls => A
+    call this%setValuePtr(name, cls)
+
+  end subroutine FieldsT_setValueA
+
+  !============================================================================
+
+  subroutine FieldsT_setValueI(this, name, value)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    integer                :: value
+    integer, pointer :: I
+    class(*), pointer :: cls
+
+    allocate(I)
+    I = value
+    cls => I
+    call this%setValuePtr(name, cls)
+
+  end subroutine FieldsT_setValueI
+
+  !============================================================================
+
+  subroutine FieldsT_setValueR(this, name, value)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    real                   :: value
+    real, pointer :: R
+    class(*), pointer :: cls
+
+    allocate(R)
+    R = value
+    cls => R
+    call this%setValuePtr(name, cls)
+
+  end subroutine FieldsT_setValueR
 
   !============================================================================
   ! ListT
@@ -214,7 +268,7 @@ contains
     character*(*)     :: name
     class(*), pointer :: value
 
-    call this%fields%setValue(name, value)
+    call this%fields%setValuePtr(name, value)
   end subroutine TableT_setFieldValue
 
   !============================================================================

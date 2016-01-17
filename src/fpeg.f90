@@ -18,7 +18,6 @@
 ! IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 module fpeg
-  use Table, only: TableT
   implicit none
 
   !----------------------------------------------------------------------------
@@ -185,6 +184,19 @@ module fpeg
   !----------------------------------------------------------------------------
 
   !
+  ! Pattern Variable (or holder) for a pattern that will be specified and set
+  ! later. This allows recursive grammars to be defined.
+  !
+  type, extends(PatternT) :: VT
+    class(PatternT), pointer :: ptn => NULL()
+  contains
+    procedure :: match      => VT_match
+    procedure :: setPattern => VT_setPattern
+  end type VT
+
+  !----------------------------------------------------------------------------
+
+  !
   ! Try to match the first pattern. If this fails try to match the second pattern.
   !
   type, extends(PatternT) :: PatternPlusT
@@ -236,30 +248,6 @@ module fpeg
   interface P
     module procedure Pstr, Pn
   end interface
-
-  !----------------------------------------------------------------------------
-  ! Captures
-  !----------------------------------------------------------------------------
-
-  type CaptureT
-    class(SourceT), pointer :: src
-    integer :: idx1, idx2
-  contains
-    procedure :: getValue => CaptureT_getValue
-  end Type CaptureT
-
-  !----------------------------------------------------------------------------
-
-  type CapturesT
-    class(TableT),  pointer :: tbl
-    class(SourceT), pointer :: src
-  contains
-    procedure :: addCapture => CapturesT_addCapture
-    procedure :: getCapture => CapturesT_getCapture
-    procedure :: addField   => CapturesT_addField
-    procedure :: getField   => CapturesT_getField
-    generic :: getValue => getCapture, getField
-  end Type CapturesT
 
   !----------------------------------------------------------------------------
 
@@ -550,6 +538,46 @@ contains
   end function RT_match
 
   !============================================================================
+  ! V
+  !============================================================================
+
+  !
+  ! Create a variable pattern (set later with setPattern)
+  !
+  function V() result(VarT)
+    implicit none
+    type(VT), pointer :: VarT
+
+    allocate(VarT)
+  end function V
+
+  !============================================================================
+
+  function VT_match(this, src) result(match)
+  !
+  ! Try to match the associated pattern
+  !
+    class(VT)      :: this
+    class(SourceT) :: src
+    integer        :: match
+
+    if (associated(this%ptn)) then
+      match = this%ptn%match(src)
+    else
+      match = src%getLoc()
+    end if
+  end function VT_match
+
+  !============================================================================
+
+  subroutine VT_setPattern(this, ptn)
+    class(VT)                :: this
+    class(PatternT), pointer :: ptn
+
+    this%ptn => ptn
+  end subroutine VT_setPattern
+
+  !============================================================================
   ! PatternPlusT
   !============================================================================
 
@@ -752,87 +780,6 @@ contains
     ! On failure reset to start
 10  match = noMatch(src, start)
   end function PatternPowerT_match
-
-  !============================================================================
-  ! CaptureT
-  !============================================================================
-
-  !
-  ! Get a capture string from the SourceT.
-  !
-  subroutine CaptureT_getValue(this, string)
-    class(CaptureT)               :: this
-    character(len=:), allocatable :: string
-    integer :: sz
-    logical :: success
-
-    sz = this%idx2 - this%idx1 + 1
-    if (sz < 0) return
-    allocate(character(this%idx2 - this%idx1 + 1) :: string)
-    success = this%src%getStr(this%idx1, this%idx2, string)
-  end subroutine CaptureT_getValue
-
-  !============================================================================
-  ! CapturesT
-  !============================================================================
-
-  subroutine CapturesT_addCapture(this, idx1, idx2)
-    class(CapturesT) :: this
-    integer          :: idx1, idx2
-    class(CaptureT), pointer :: capt
-    class(*), pointer :: value
-    logical :: success
-
-    allocate(capt)
-    capt%idx1 = idx1
-    capt%idx2 = idx2
-    capt%src => this%src
-
-    value => capt
-    success = this%tbl%setItemValue(0, value)
-  end subroutine CapturesT_addCapture
-
-  !============================================================================
-
-  function CapturesT_getCapture(this, idx, string) result(success)
-    class(CapturesT)              :: this
-    integer                       :: idx
-    character(len=:), allocatable :: string
-    logical                       :: success
-    class(*), pointer :: value
-
-    success = this%tbl%getItemValue(idx, value)
-    if (.not.success) return
-
-    select type(value)
-    type is (CaptureT)
-      allocate(character(value%idx2-value%idx1+1) :: string)
-      success = value%src%getStr(value%idx1, value%idx2, string)
-      return
-    end select
-    success = .false.
-  end function CapturesT_getCapture
-
-  !============================================================================
-
-  subroutine CapturesT_addField(this, name, value)
-    class(CapturesT)  :: this
-    character*(*)     :: name
-    class(*), pointer :: value
-
-    call this%tbl%setFieldValue(name, value)
-  end subroutine CapturesT_addField
-
-  !============================================================================
-
-  function CapturesT_getField(this, name, value) result(success)
-    class(CapturesT)  :: this
-    character*(*)     :: name
-    class(*), pointer :: value
-    logical           :: success
-
-    success = this%tbl%getFieldValue(name, value)
-  end function CapturesT_getField
 
   !============================================================================
 

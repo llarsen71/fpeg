@@ -20,7 +20,7 @@ contains
     type(FieldsT) :: field
     class(*), pointer :: value
 
-    call field%setValueA(field, "test", "bob")
+    call field%setValueA("test", "bob")
     call assert_true(field%getValue("test", value))
   end subroutine
 

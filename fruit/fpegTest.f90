@@ -13,6 +13,7 @@ contains
     call run_test_case(test_Pn,    "test_Pn")
     call run_test_case(test_R,     "test_R")
     call run_test_case(test_S,     "test_S")
+    call run_test_case(test_V,     "Test_V")
     call run_test_case(test_Pow,   "test_Pow")
     call run_test_case(test_Plus,  "test_Plus")
     call run_test_case(test_Minus, "test_Minus")
@@ -70,6 +71,29 @@ contains
     call assert_equals(2,match_string(ptn, "2"), "match index is wrong for S")
     call assert_equals(2,match_string(ptn, "3"), "match index is wrong for S")
     call assert_equals(NO_MATCH,match_string(ptn, "4"), "match index should be NO_MATCH for S")
+  end subroutine
+
+  !============================================================================
+
+  subroutine Test_V()
+    implicit none
+    class(VT),       pointer :: Expr
+    class(PatternT), pointer :: Sum, Product, Value, IntMath, Spc
+
+    ! Simple integer math expressions
+    Spc => P(' ')**0
+
+    Expr    => V()
+    Value   => R('09')**1 + (P('(') * Spc * Expr * Spc * P(')'))
+    Product => Value * Spc * (S('*/') * Spc * Value)**0
+    Sum     => Spc * Product * Spc * (S('+-') * Spc * Product * Spc)**0
+    call Expr%setPattern(Sum)
+    IntMath => Expr * (-P(1))  ! Pattern must match whole string
+
+    call assert_equals(12,match_string(IntMath,"1 + (2-3)*4"),"Should match integer math")
+    call assert_equals(4,match_string(IntMath," 1 "),"Should match single value")
+    call assert_equals(NO_MATCH,match_string(IntMath,"1 +"),"Should not match an incomplete expression")
+
   end subroutine
 
   !============================================================================

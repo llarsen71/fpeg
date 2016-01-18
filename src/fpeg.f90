@@ -200,8 +200,8 @@ module fpeg
   ! Try to match the first pattern. If this fails try to match the second pattern.
   !
   type, extends(PatternT) :: PatternPlusT
-    class(PatternT), pointer :: ptn1
-    class(PatternT), pointer :: ptn2
+    class(PatternT), pointer :: ptn1 => NULL()
+    class(PatternT), pointer :: ptn2 => NULL()
   contains
     procedure :: match => PatternPlusT_match
   end type PatternPlusT
@@ -212,8 +212,8 @@ module fpeg
   ! Match the first pattern only if the second pattern is not a match.
   !
   type, extends(PatternT) :: PatternMinusT
-    class(PatternT), pointer :: ptn1
-    class(PatternT), pointer :: ptn2
+    class(PatternT), pointer :: ptn1 => NULL()
+    class(PatternT), pointer :: ptn2 => NULL()
   contains
     procedure :: match => PatternMinusT_match
   end type PatternMinusT
@@ -224,8 +224,8 @@ module fpeg
   ! Match the first pattern followed by the second pattern
   !
   type, extends(PatternT) :: PatternTimesT
-    class(PatternT), pointer :: ptn1
-    class(PatternT), pointer :: ptn2
+    class(PatternT), pointer :: ptn1 => NULL()
+    class(PatternT), pointer :: ptn2 => NULL()
   contains
     procedure :: match => PatternTimesT_match
   end type PatternTimesT
@@ -237,11 +237,36 @@ module fpeg
   ! P^-n looks for n or less matches of the pattern.
   !
   type, extends(PatternT) :: PatternPowerT
-    class(PatternT), pointer :: ptn
+    class(PatternT), pointer :: ptn => NULL()
     integer :: n
   contains
     procedure :: match => PatternPowerT_match
   end type PatternPowerT
+
+  !----------------------------------------------------------------------------
+
+
+  !
+  ! Call a listener with the token name and result when a token is found
+  !
+  type, extends(PatternT) :: TokenT
+    class(PatternT), pointer :: ptn => NULL()
+    character(len=:), allocatable :: token
+    procedure(tokenListener), nopass, pointer :: listener => NULL()
+  contains
+    procedure :: match => TokenT_match
+  end type TokenT
+
+  !----------------------------------------------------------------------------
+
+  interface
+    subroutine tokenListener(token, i, j, src)
+      import SourceT
+      character*(*)  :: token
+      integer        :: i, j    ! Start and end index of String
+      class(SourceT) :: src     ! Input src
+    end subroutine
+  end interface
 
   !----------------------------------------------------------------------------
 
@@ -339,7 +364,7 @@ contains
     logical :: success
 
     success = .false.
-    if (i<j) return
+    if (i>j) return
     if (j > len(this%string)) return
     if (i < 1) return
     string = this%string(i:j)
@@ -780,6 +805,38 @@ contains
     ! On failure reset to start
 10  match = noMatch(src, start)
   end function PatternPowerT_match
+
+  !============================================================================
+  ! Token
+  !============================================================================
+
+  function Token(ptn, token_, listener) result(ptnToken)
+    class(PatternT), pointer :: ptn
+    character*(*)            :: token_
+    procedure(tokenListener) :: listener
+    type(TokenT), pointer    :: ptnToken
+
+    allocate(ptnToken)
+    allocate(character(len=len(token_)) :: ptnToken%token)
+    ptnToken%ptn      => ptn
+    ptnToken%token    =  token_
+    ptnToken%listener => listener
+  end function Token
+
+  !============================================================================
+
+  function TokenT_match(this, src) result(match)
+    class(TokenT)  :: this
+    class(SourceT) :: src
+    integer        :: match
+    integer :: i
+
+    i = src%getLoc()
+    match = this%ptn%match(src)
+    if (match .ne. NO_MATCH) then
+      call this%listener(this%token, i, match-1, src)
+    end if
+  end function TokenT_match
 
   !============================================================================
 

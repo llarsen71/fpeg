@@ -3,6 +3,11 @@ module fpegTest
   use fruit
   use fpeg
   implicit none
+
+  integer :: realIdx, intIdx, strIdx, idx
+  character*10 :: realToken, intToken, strToken
+  logical :: called_realListener, called_intListener, called_strListener
+
 contains
 
   !============================================================================
@@ -18,6 +23,7 @@ contains
     call run_test_case(test_Plus,  "test_Plus")
     call run_test_case(test_Minus, "test_Minus")
     call run_test_case(test_Times, "test_Times")
+    call run_test_case(test_Token, "test_Token")
   end subroutine
 
   !============================================================================
@@ -160,6 +166,140 @@ contains
     call assert_equals(6,match_string(ptn, "0 - 5*a"), "Should be valid integer - integer at start")
     call assert_equals(NO_MATCH,match_string(ptn, "a - 5"), "First term is not an integer")
     call assert_equals(NO_MATCH,match_string(ptn, "54 + "), "Missing second integer")
+  end subroutine
+
+  !============================================================================
+
+  subroutine test_Token()
+    implicit none
+    class(PatternT), pointer :: ptn
+    class(PatternT), pointer :: r_, i_, s_, spc
+
+    r_   => R('09')**1 * P(".") * R('09')**0
+    i_   => R('09')**1
+    s_ => (R('az') + R('az') + P('_'))**1
+    spc  => P(' ')**0
+
+    ptn => (Token(r_, 'real',   realListener) + &
+            Token(i_, 'int',    intListener)  + &
+            Token(s_, 'string', strListener) + spc )**1 &
+            * (-P(1)) ! Match whole string
+
+    ! All three types included
+    call initListeners(1, 2, 3, "1.9", "32", "test")
+    call assert_equals(12, match_string(ptn, "1.9 32 test"), "Token string should have matched")
+    call verifyCalled(.true., .true., .true.)
+
+    ! No real value included
+    call initListeners(0, 2, 1, "", "1", "string")
+    call assert_equals(9, match_string(ptn, "string 1"), "Token string should have matched")
+    call verifyCalled(.false., .true., .true.)
+
+    ! Not a full match since @ is not a valid part of the grammar.
+    ! NOTE THAT TOKENS STILL GET CALLED EVEN IF FULL PATTERN DOES NOT MATCH!
+    call initListeners(1, 2, 0, "1.5", "10", "")
+    call assert_equals(NO_MATCH, match_string(ptn, "1.5 10 @"), "Token string should have matched")
+    call verifyCalled(.true., .true., .false.)
+
+  end subroutine
+
+  !----------------------------------------------------------------------------
+
+  subroutine initListeners(ri, ii, si, rT, iT, sT)
+    integer :: ri, ii, si
+    character*(*) :: rT, iT, sT
+
+    called_realListener = .false.
+    called_intListener  = .false.
+    called_strListener  = .false.
+
+    idx     = 0
+    realIdx = ri
+    intIdx  = ii
+    strIdx  = si
+
+    realToken = rT
+    intToken  = iT
+    strToken  = sT
+  end subroutine
+
+  !----------------------------------------------------------------------------
+
+  subroutine verifyCalled(rC, iC, sC)
+    logical :: rC, iC, sC
+
+    call assert_equals(rC, called_realListener, "The realListener call incorrect")
+    call assert_equals(iC, called_intListener,  "The intListener call incorrect")
+    call assert_equals(sC, called_strListener,  "The strListener call incorrect")
+  end subroutine
+
+  !----------------------------------------------------------------------------
+
+  subroutine realListener(token, i, j, src)
+    character*(*)  :: token
+    integer        :: i, j
+    class(SourceT) :: src
+    character*10   :: str
+
+    idx = idx + 1
+    called_realListener = .true.
+
+    call assert_true(realIdx > 0, "The realListener should not have been called")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(realIdx, idx, "The realListener not called in correct order")
+    call assert_equals('real', token, "The token name should be real")
+
+    call assert_true(src%getStr(i, j, str), "Real token indexes should be valid")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(realToken, str, "Real token not correct")
+  end subroutine
+
+  !----------------------------------------------------------------------------
+
+  subroutine intListener(token, i, j, src)
+    character*(*)  :: token
+    integer        :: i, j
+    class(SourceT) :: src
+    character*10   :: str
+
+    idx = idx + 1
+    called_intListener = .true.
+
+    call assert_true(intIdx > 0, "The intListener should not have been called")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(intIdx, idx, "The intListener not called in correct order")
+    call assert_equals('int', token, "The token name should be int")
+
+    call assert_true(src%getStr(i, j, str), "Int token indexes should be valid")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(intToken, str, "Int token not correct")
+  end subroutine
+
+  !----------------------------------------------------------------------------
+
+  subroutine strListener(token, i, j, src)
+    character*(*)  :: token
+    integer        :: i, j
+    class(SourceT) :: src
+    character*10   :: str
+
+    idx = idx + 1
+    called_strListener = .true.
+
+    call assert_true(strIdx > 0, "The strListener should not have been called")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(strIdx, idx, "The strListener not called in correct order")
+    call assert_equals('string', token, "The token name should be str")
+
+    call assert_true(src%getStr(i, j, str), "String token indexes should be valid")
+    if (.not.is_last_passed()) return
+
+    call assert_equals(strToken, str, "String token not correct")
   end subroutine
 
   !============================================================================

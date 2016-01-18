@@ -113,26 +113,26 @@ module fpeg
   !----------------------------------------------------------------------------
 
   interface operator(+)
-    procedure PatternPlus
+    module procedure PatternPlus
   end interface
 
   !----------------------------------------------------------------------------
 
   interface operator(-)
-    procedure PatternNeg
-    procedure PatternMinus
+    module procedure PatternNeg
+    module procedure PatternMinus
   end interface
 
   !----------------------------------------------------------------------------
 
   interface operator(*)
-    procedure PatternTimes
+    module procedure PatternTimes
   end interface
 
   !----------------------------------------------------------------------------
 
   interface operator (**)
-    procedure PatternPower
+    module procedure PatternPower
   end interface
 
   !----------------------------------------------------------------------------
@@ -245,7 +245,6 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
-
   !
   ! Call a listener with the token name and result when a token is found
   !
@@ -357,10 +356,10 @@ contains
   !============================================================================
 
   function StringSrcT_getStr(this, i, j, string) result(success)
-    class(StringSrcT) :: this
-    integer :: i
-    integer :: j
-    character*(*) :: string
+    class(StringSrcT)    :: this
+    integer              :: i
+    integer              :: j
+    character(len=j-i+1) :: string
     logical :: success
 
     success = .false.
@@ -810,17 +809,19 @@ contains
   ! Token
   !============================================================================
 
-  function Token(ptn, token_, listener) result(ptnToken)
-    class(PatternT), pointer :: ptn
+  function Token(ptn1, token_, listener) result(ptn)
+    class(PatternT), pointer :: ptn1
     character*(*)            :: token_
     procedure(tokenListener) :: listener
-    type(TokenT), pointer    :: ptnToken
+    class(PatternT), pointer :: ptn
+    type(TokenT), pointer :: ptnToken
 
     allocate(ptnToken)
     allocate(character(len=len(token_)) :: ptnToken%token)
-    ptnToken%ptn      => ptn
+    ptnToken%ptn      => ptn1
     ptnToken%token    =  token_
     ptnToken%listener => listener
+    ptn               => ptnToken
   end function Token
 
   !============================================================================

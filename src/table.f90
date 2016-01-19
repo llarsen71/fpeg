@@ -13,11 +13,14 @@ module Table
   contains
     procedure :: getField => FieldsT_getField
     procedure :: getValue => FieldsT_getValue
+    procedure :: getValueA => FieldsT_getValueA
+    procedure :: getValueI => FieldsT_getValueI
+    procedure :: getValueR => FieldsT_getValueR
     procedure :: setValuePtr => FieldsT_setValuePtr
     procedure :: setValueA => FieldsT_setValueA
     procedure :: setValueI => FieldsT_setValueI
     procedure :: setValueR => FieldsT_setValueR
-    !generic :: setValue => setValueA, setValueI, setValueR
+    generic :: setValue => setValueA, setValueI, setValueR
   end type FieldsT
 
   !----------------------------------------------------------------------------
@@ -91,9 +94,71 @@ contains
     success = .false.
     if (.not.this%getField(name, field)) return
 
-    value => this%value
+    value => field%value
     success = .true.
   end function FieldsT_getValue
+
+  !============================================================================
+
+  function FieldsT_getValueA(this, name, value) result(success)
+    class(FieldsT), target    :: this
+    character*(*)             :: name
+    character(len=:), pointer :: value
+    logical                   :: success
+    class(FieldsT), pointer :: field
+    class(*), pointer :: value1
+
+    success = .false.
+    if (.not.this%getValue(name, value1)) return
+
+    select type(value1)
+    type is (character(len=*))
+      value => value1
+      success = .true.
+    end select
+  end function FieldsT_getValueA
+
+  !============================================================================
+
+  function FieldsT_getValueI(this, name, value) result(success)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    integer                :: value
+    logical                :: success
+    class(FieldsT), pointer :: field
+    class(*), pointer :: value1
+
+    success = .false.
+    if (.not.this%getValue(name, value1)) return
+
+    select type(value1)
+    type is (integer)
+      value = value1
+      success = .true.
+    end select
+  end function FieldsT_getValueI
+
+  !============================================================================
+
+  function FieldsT_getValueR(this, name, value) result(success)
+    class(FieldsT), target :: this
+    character*(*)          :: name
+    real                   :: value
+    logical                :: success
+    class(FieldsT), pointer :: field
+    class(*), pointer :: value1
+
+    success = .false.
+    if (.not.this%getValue(name, value1)) return
+
+    select type(value1)
+    type is (real)
+      value = value1
+      success = .true.
+    class default
+      write(*,*) "Unknown class"
+    end select
+  end function FieldsT_getValueR
 
   !============================================================================
 
@@ -155,7 +220,7 @@ contains
   subroutine FieldsT_setValueR(this, name, value)
     class(FieldsT), target :: this
     character*(*)          :: name
-    real                   :: value
+    real, target           :: value
     real, pointer :: R
     class(*), pointer :: cls
 

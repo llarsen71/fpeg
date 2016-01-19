@@ -1,5 +1,5 @@
 module fpegTest
-#define RUNTEST(case) run_test_case(case, #case)
+!#define RUNTEST(case) run_test_case(case, #case)
   use fruit
   use fpeg
   implicit none
@@ -175,10 +175,10 @@ contains
     class(PatternT), pointer :: ptn
     class(PatternT), pointer :: r_, i_, s_, spc
 
-    r_   => R('09')**1 * P(".") * R('09')**0
-    i_   => R('09')**1
-    s_ => (R('az') + R('az') + P('_'))**1
-    spc  => P(' ')**0
+    r_   => R('09')**1 * P(".") * R('09')**0  ! Real Value
+    i_   => R('09')**1                        ! Int Value
+    s_   => (R('az') + R('az') + P('_'))**1   ! String value
+    spc  => P(' ')**0                         ! Spaces
 
     ptn => (Token(r_, 'real',   realListener) + &
             Token(i_, 'int',    intListener)  + &

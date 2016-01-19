@@ -33,10 +33,17 @@ contains
     end if
 
     ! Test real value
-    call field%setValue("test2", 4.5)
-    call assert_true(field%getValueR("test", r), "getValueR should return the real value")
+    call field%setValue("real", 4.5)
+    call assert_true(field%getValueR("real", r), "getValueR should return the real value")
     if (is_last_passed()) then
       call assert_equals(4.5, r, "getValueR did not return correct number")
+    end if
+
+    ! Test integer value
+    call field%setValue("int", 3)
+    call assert_true(field%getValueI("int", i), "getValueI should return the real value")
+    if (is_last_passed()) then
+      call assert_equals(3, i, "getValueI did not return correct number")
     end if
 
   end subroutine
@@ -54,7 +61,7 @@ contains
     call assert_true(list%setValue(1, value))
     nullify(value)
     call assert_true(list%getValue(1, value))
-  
+
   end subroutine
 
   !============================================================================

@@ -150,6 +150,12 @@ contains
 
     success = .false.
     if (.not.this%getValue(name, value1)) return
+
+    select type(value1)
+    type is (real)
+      value   = value1
+      success = .true.
+    end select
   end function FieldsT_getValueR
 
   !============================================================================

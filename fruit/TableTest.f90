@@ -17,11 +17,12 @@ contains
   !============================================================================
 
   subroutine test_Fields()
-    type(FieldsT) :: field
-    class(*), pointer :: value
+    type(FieldsT), target :: field
+    class(*), pointer :: value, v2
     character(len=:), pointer :: str
     integer :: i
     real    :: r
+    type(FieldsT), pointer :: f1
 
     nullify(str)
     ! Test ascii value
@@ -46,6 +47,21 @@ contains
       call assert_equals(3, i, "getValueI did not return correct number")
     end if
 
+    ! Test setValuePtr
+    v2 => field
+    call field%setValuePtr("field", v2)
+    call assert_true(field%getValuePtr("field", value), "getValuePtr should return the Ptr value")
+    if (is_last_passed()) then
+      call assert_true(associated(v2, value), "The location of value should equal v2")
+      select type(value)
+      type is (FieldsT)
+        f1 => value
+        call assert_true(associated(f1, field), "getField should return the original field")
+      class default
+        call add_fail("getValuePtr type returned should be FieldsT")
+      end select
+    end if
+
   end subroutine
 
   !============================================================================
@@ -58,9 +74,9 @@ contains
     allocate(I)
     I = 4
     value => I
-    call assert_true(list%setValue(1, value))
+    call assert_true(list%setValuePtr(1, value))
     nullify(value)
-    call assert_true(list%getValue(1, value))
+    call assert_true(list%getValuePtr(1, value))
 
   end subroutine
 

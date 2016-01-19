@@ -12,7 +12,7 @@ module Table
     type(FieldsT), pointer        :: next => NULL()
   contains
     procedure :: getField => FieldsT_getField
-    procedure :: getValue => FieldsT_getValue
+    procedure :: getValuePtr => FieldsT_getValuePtr
     procedure :: getValueA => FieldsT_getValueA
     procedure :: getValueI => FieldsT_getValueI
     procedure :: getValueR => FieldsT_getValueR
@@ -33,9 +33,11 @@ module Table
     class(*), pointer     :: value
     type(ListT), pointer  :: next => NULL()
   contains
+    procedure :: getSize  => ListT_getSize
     procedure :: getItem  => ListT_getItem
-    procedure :: getValue => ListT_getValue
-    procedure :: setValue => ListT_setValue
+    procedure :: getValuePtr => ListT_getValuePtr
+    procedure :: setValuePtr => ListT_setValuePtr
+    procedure :: addValuePtr => ListT_addValuePtr
   end type ListT
 
   !----------------------------------------------------------------------------
@@ -84,7 +86,7 @@ contains
 
   !============================================================================
 
-  function FieldsT_getValue(this, name, value) result(success)
+  function FieldsT_getValuePtr(this, name, value) result(success)
     class(FieldsT), target :: this
     character*(*)          :: name
     class(*), pointer      :: value
@@ -96,7 +98,7 @@ contains
 
     value => field%value
     success = .true.
-  end function FieldsT_getValue
+  end function FieldsT_getValuePtr
 
   !============================================================================
 
@@ -109,7 +111,7 @@ contains
     class(*), pointer :: value1
 
     success = .false.
-    if (.not.this%getValue(name, value1)) return
+    if (.not.this%getValuePtr(name, value1)) return
 
     select type(value1)
     type is (character(len=*))
@@ -129,7 +131,7 @@ contains
     class(*), pointer :: value1
 
     success = .false.
-    if (.not.this%getValue(name, value1)) return
+    if (.not.this%getValuePtr(name, value1)) return
 
     select type(value1)
     type is (integer)
@@ -149,7 +151,7 @@ contains
     class(*), pointer :: value1
 
     success = .false.
-    if (.not.this%getValue(name, value1)) return
+    if (.not.this%getValuePtr(name, value1)) return
 
     select type(value1)
     type is (real)
@@ -233,37 +235,57 @@ contains
   ! ListT
   !============================================================================
 
+  function ListT_getSize(this) result(sz)
+!
+! Get the size of the list.
+!
+    class(ListT), target  :: this
+    integer               :: sz
+    class(ListT), pointer :: item
+    integer :: i
+
+    sz = 1
+    item => this
+    do while(associated(item%next))
+      sz = sz + 1
+      item => item%next
+    end do
+  end function ListT_getSize
+
+  !============================================================================
+
   function ListT_getItem(this, idx, item) result(success)
 !
-! Get list item at index. 0 indicates last item in list
+! Get list item at index. Negative numbers start from the end.
 !
     class(ListT), target  :: this
     integer               :: idx
     class(ListT), pointer :: item
     logical               :: success
-    integer :: i
+    integer :: i, idx2
 
     nullify(item)
     success = .false.
-    if (idx < 0) return
+    if (idx == 0) return
 
+    idx2 = idx
+    if (idx < 0) idx2 = this%getSize() + 1 - idx
+    if (idx2 < 1) return  ! Invalid index
+
+    ! Loop through items till we reach the index
     item => this
     i = 1
-    do
-      if (i == idx .or. &
-          (idx == 0 .and. .not.associated(item%next))) then
-        success = .true.
-        return
-      end if
-
+    do while(idx2 > i)
+      i = i + 1
       item => item%next
-      if (.not.associated(item)) return
+      if (.not.associated(item)) return ! Failed to find index
     end do
+    success = .true.
   end function ListT_getItem
 
   !============================================================================
 
-  function ListT_getValue(this, idx, value) result(success)
+  function ListT_getValuePtr(this, idx, value) result(success)
     class(ListT), target :: this
     integer              :: idx
     class(*), pointer    :: value
@@ -274,22 +296,18 @@ contains
     success = this%getItem(idx, item)
     if (.not.success) return
     value => item%value
-  end function ListT_getValue
+  end function ListT_getValuePtr
 
   !============================================================================
 
-  function ListT_setValue(this, idx, value) result(success)
+  function ListT_setValuePtr(this, idx, value) result(success)
     class(ListT)      :: this
     integer           :: idx
     class(*), pointer :: value
     logical           :: success
     class(ListT), pointer :: item
-    integer :: idx1
 
-    idx1 = idx-1
-    if (idx == 0) idx1 = 0
-
-    success = this%getItem(idx1, item)
+    success = this%getItem(idx, item)
     if (.not.success) return
 
     ! Add item to list if needed
@@ -298,7 +316,23 @@ contains
       item => item%next
     end if
     item%value => value
-  end function ListT_setValue
+  end function ListT_setValuePtr
+
+  !============================================================================
+
+  subroutine ListT_addValuePtr(this, value)
+    class(ListT)      :: this
+    class(*), pointer :: value
+    class(ListT), pointer :: item
+
+    ! Get the last item in the list
+    success = this%getItem(-1, item)
+
+    ! Add item to list
+    allocate(item%next)
+    item => item%next
+    item%value => value
+  end subroutine ListT_addValuePtr
 
   !============================================================================
   ! TableT
@@ -310,7 +344,7 @@ contains
     class(*), pointer :: value
     logical           :: success
 
-    success = this%items%getValue(idx, value)
+    success = this%items%getValuePtr(idx, value)
   end function TableT_getItemValue
 
   !============================================================================
@@ -321,7 +355,7 @@ contains
     class(*), pointer :: value
     logical           :: success
 
-    success = this%fields%getValue(name, value)
+    success = this%fields%getValuePtr(name, value)
   end function TableT_getFieldValue
 
   !============================================================================
@@ -342,7 +376,7 @@ contains
     class(*), pointer :: value
     logical           :: success
 
-    success = this%items%setValue(idx, value)
+    success = this%items%setValuePtr(idx, value)
   end function TableT_setItemValue
 
   !============================================================================

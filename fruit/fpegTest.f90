@@ -30,97 +30,107 @@ contains
 
   subroutine test_P()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => P('123')
+    ptn = P('123')
     call assert_equals(4,match_string(ptn, "1234"), "match index is wrong for P")
     call assert_equals(NO_MATCH,match_string(ptn, " 1234"),"match should be NO_MATCH for P")
     !call assert_equals(5,match_string(ptn, " 1234", 1), "match index is wrong for P")
     call assert_equals(NO_MATCH,match_string(ptn, ""),"match should be NO_MATCH for P")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_Pn()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => Pn(3)
+    ptn = Pn(3)
     call assert_equals(NO_MATCH, match_string(ptn,"a"), "Should not match one character")
     call assert_equals(NO_MATCH, match_string(ptn,"ab"), "Should not match two characters")
     call assert_equals(4, match_string(ptn,"abc"), "Should match 3 characters")
     call assert_equals(4, match_string(ptn,"abcd"), "Should match 3+ characters")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_R()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => R('az')
+    ptn = R('az')
     call assert_equals(2,match_string(ptn, "zz"), "match index is wrong for R")
     call assert_equals(2,match_string(ptn, "aa"), "match index is wrong for R")
     call assert_equals(2,match_string(ptn, "ss"), "match index is wrong for R")
     call assert_equals(NO_MATCH, match_string(ptn, "Z" ), "match should be NO_MATCH for R")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_S()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => S('123')
+    ptn = S('123')
     call assert_equals(NO_MATCH,match_string(ptn, "0"), "match should be NO_MATCH for S")
     call assert_equals(2,match_string(ptn, "1"), "match index is wrong for S")
     call assert_equals(2,match_string(ptn, "2"), "match index is wrong for S")
     call assert_equals(2,match_string(ptn, "3"), "match index is wrong for S")
     call assert_equals(NO_MATCH,match_string(ptn, "4"), "match index should be NO_MATCH for S")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine Test_V()
     implicit none
-    class(VT),       pointer :: Expr
-    class(PatternT), pointer :: Sum, Product, Value, IntMath, Spc
+    type(VT)                     :: Expr
+    class(PatternT), allocatable :: Sum, Product, Value, IntMath, Spc
 
     ! Simple integer math expressions
-    Spc => P(' ')**0
+    Spc = P(' ')**0
 
-    Expr    => V()
-    Value   => R('09')**1 + (P('(') * Spc * Expr * Spc * P(')'))
-    Product => Value * Spc * (S('*/') * Spc * Value)**0
-    Sum     => Spc * Product * Spc * (S('+-') * Spc * Product * Spc)**0
+    Value   = R('09')**1 + (P('(') * Spc * Expr * Spc * P(')'))
+    Product = Value * Spc * (S('*/') * Spc * Value)**0
+    Sum     = Spc * Product * Spc * (S('+-') * Spc * Product * Spc)**0
     call Expr%setPattern(Sum)
-    IntMath => Expr * (-P(1))  ! Pattern must match whole string
+    IntMath = Expr * (-P(1))  ! Pattern must match whole string
 
     call assert_equals(12,match_string(IntMath,"1 + (2-3)*4"),"Should match integer math")
     call assert_equals(4,match_string(IntMath," 1 "),"Should match single value")
     call assert_equals(NO_MATCH,match_string(IntMath,"1 +"),"Should not match an incomplete expression")
-
+    deallocate(Sum)
+    deallocate(Product)
+    deallocate(Value)
+    deallocate(IntMath)
+    deallocate(Spc)
   end subroutine
 
   !============================================================================
 
   subroutine test_Pow()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => R("az")**0
+    ptn = R("az")**0
     call assert_equals(1, match_string(ptn, " "), "Should match only start of the string")
     call assert_equals(5, match_string(ptn, "this is a test"), "Should match to end of first word")
     deallocate(ptn)
 
-    ptn => R("az")**1
+    ptn = R("az")**1
     call assert_equals(NO_MATCH, match_string(ptn, " "), "match should fail (needs at least one letter)")
     call assert_equals(5, match_string(ptn, "this is a test"), "Should match to end of first word")
+    deallocate(ptn)
+    
 
-    ptn => R("az")**-2
+    ptn = R("az")**-2
     call assert_equals(1, match_string(ptn, " "), "match zero characters")
     call assert_equals(3, match_string(ptn, "this is a test"), "Should match end of first two letters")
     call assert_equals(2, match_string(ptn, "iOS"), "Should match first letter only")
+    deallocate(ptn)
 
   end subroutine
 
@@ -128,61 +138,64 @@ contains
 
   subroutine test_Plus()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
-    ptn => P('cat') + P('dog')
+    ptn = P('cat') + P('dog')
     call assert_equals(4,match_string(ptn, "cat"), "Should match 'cat'")
     call assert_equals(4,match_string(ptn, "dog"), "Should match 'dog'")
     call assert_equals(4,match_string(ptn, "catdog"), "Should match first 'cat'")
     call assert_equals(NO_MATCH,match_string(ptn,"cap"), "Should not match 'cap'")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_Minus()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
     ! Any four (or more) character not including Bob or Fred
-    ptn => (Pn(4) - P("Bob")) - P("Fred")
+    ptn = (Pn(4) - P("Bob")) - P("Fred")
     call assert_equals(NO_MATCH,match_string(ptn, "Not"), "Should not match a string less that 4 characters")
     call assert_equals(NO_MATCH,match_string(ptn, "Bobo"), "Should not match a string starting with Bob")
     call assert_equals(NO_MATCH,match_string(ptn, "Fred"), "Should not match a string starting with Fred")
     call assert_equals(5,match_string(ptn, "Nuts"), "Nuts is a valid 4 character string")
     call assert_equals(5,match_string(ptn, "fred"), "fred is ok since it doesn't start with a capital F")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_Times()
     implicit none
-    class(PatternT), pointer :: ptn
+    class(PatternT), allocatable :: ptn
 
     ! integer + or - integer
-    ptn => R("09")**1 * P(" ")**0 * S("+-") * P(" ")**0 * R("09")**1
+    ptn = R("09")**1 * P(" ")**0 * S("+-") * P(" ")**0 * R("09")**1
 
     call assert_equals(10,match_string(ptn, "123 + 456"), "Should be valid integer + integer")
     call assert_equals(6,match_string(ptn, "0 - 5"), "Should be valid integer - integer")
     call assert_equals(6,match_string(ptn, "0 - 5*a"), "Should be valid integer - integer at start")
     call assert_equals(NO_MATCH,match_string(ptn, "a - 5"), "First term is not an integer")
     call assert_equals(NO_MATCH,match_string(ptn, "54 + "), "Missing second integer")
+    deallocate(ptn)
   end subroutine
 
   !============================================================================
 
   subroutine test_Token()
     implicit none
-    class(PatternT), pointer :: ptn
-    class(PatternT), pointer :: r_, i_, s_, spc
+    class(PatternT), allocatable :: ptn
+    class(PatternT), allocatable :: r_, i_, s_, spc
+    
+    r_   = R('09')**1 * P(".") * R('09')**0
+    i_   = R('09')**1
+    s_   = (R('az') + R('az') + P('_'))**1
+    spc  = P(' ')**0
 
-    r_   => R('09')**1 * P(".") * R('09')**0  ! Real Value
-    i_   => R('09')**1                        ! Int Value
-    s_   => (R('az') + R('az') + P('_'))**1   ! String value
-    spc  => P(' ')**0                         ! Spaces
-
-    ptn => (Token(r_, 'real',   realListener) + &
+    ptn = ( Token(r_, 'real',   realListener) + &
             Token(i_, 'int',    intListener)  + &
-            Token(s_, 'string', strListener) + spc )**1 &
+            Token(s_, 'string', strListener)  + spc )**1 &
             * (-P(1)) ! Match whole string
 
     ! All three types included
@@ -201,6 +214,11 @@ contains
     call assert_equals(NO_MATCH, match_string(ptn, "1.5 10 @"), "Token string should have matched")
     call verifyCalled(.true., .true., .false.)
 
+    deallocate(r_)
+    deallocate(i_)
+    deallocate(s_)
+    deallocate(spc)
+    deallocate(ptn)
   end subroutine
 
   !----------------------------------------------------------------------------

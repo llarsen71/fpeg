@@ -101,9 +101,9 @@ module fpeg
   abstract interface
     function match(this, src) result(idxend)
       import :: PatternT, SourceT
-      class(PatternT) :: this
-      class(SourceT)  :: src
-      integer         :: idxend
+      class(PatternT), intent(in) :: this
+      class(SourceT)              :: src
+      integer                     :: idxend
     end function match
   end interface
 
@@ -112,28 +112,34 @@ module fpeg
 
   !----------------------------------------------------------------------------
 
+  interface assignment(=)
+    module procedure PatternAssign
+  end interface assignment(=)
+
+  !----------------------------------------------------------------------------
+
   interface operator(+)
     module procedure PatternPlus
-  end interface
+  end interface operator(+)
 
   !----------------------------------------------------------------------------
 
   interface operator(-)
     module procedure PatternNeg
     module procedure PatternMinus
-  end interface
+  end interface operator(-)
 
   !----------------------------------------------------------------------------
 
   interface operator(*)
     module procedure PatternTimes
-  end interface
+  end interface operator(*)
 
   !----------------------------------------------------------------------------
 
   interface operator (**)
     module procedure PatternPower
-  end interface
+  end interface operator (**)
 
   !----------------------------------------------------------------------------
   ! PatternT objects
@@ -188,7 +194,7 @@ module fpeg
   ! later. This allows recursive grammars to be defined.
   !
   type, extends(PatternT) :: VT
-    class(PatternT), pointer :: ptn => NULL()
+    class(PatternT), allocatable :: ptn
   contains
     procedure :: match      => VT_match
     procedure :: setPattern => VT_setPattern
@@ -197,11 +203,23 @@ module fpeg
   !----------------------------------------------------------------------------
 
   !
+  ! Pattern Variable (or holder) for a pattern that will be specified and set
+  ! later. This allows recursive grammars to be defined.
+  !
+  type, extends(PatternT) :: PatternAssignT
+    class(PatternT), allocatable :: ptn
+  contains
+    procedure :: match => PatternAssignT_match
+  end type PatternAssignT
+
+  !----------------------------------------------------------------------------
+
+  !
   ! Try to match the first pattern. If this fails try to match the second pattern.
   !
   type, extends(PatternT) :: PatternPlusT
-    class(PatternT), pointer :: ptn1 => NULL()
-    class(PatternT), pointer :: ptn2 => NULL()
+    class(PatternT), allocatable :: ptn1
+    class(PatternT), allocatable :: ptn2
   contains
     procedure :: match => PatternPlusT_match
   end type PatternPlusT
@@ -212,8 +230,8 @@ module fpeg
   ! Match the first pattern only if the second pattern is not a match.
   !
   type, extends(PatternT) :: PatternMinusT
-    class(PatternT), pointer :: ptn1 => NULL()
-    class(PatternT), pointer :: ptn2 => NULL()
+    class(PatternT), allocatable :: ptn1
+    class(PatternT), allocatable :: ptn2
   contains
     procedure :: match => PatternMinusT_match
   end type PatternMinusT
@@ -224,8 +242,8 @@ module fpeg
   ! Match the first pattern followed by the second pattern
   !
   type, extends(PatternT) :: PatternTimesT
-    class(PatternT), pointer :: ptn1 => NULL()
-    class(PatternT), pointer :: ptn2 => NULL()
+    class(PatternT), allocatable :: ptn1
+    class(PatternT), allocatable :: ptn2
   contains
     procedure :: match => PatternTimesT_match
   end type PatternTimesT
@@ -237,7 +255,7 @@ module fpeg
   ! P^-n looks for n or less matches of the pattern.
   !
   type, extends(PatternT) :: PatternPowerT
-    class(PatternT), pointer :: ptn => NULL()
+    class(PatternT), allocatable :: ptn
     integer :: n
   contains
     procedure :: match => PatternPowerT_match
@@ -249,7 +267,7 @@ module fpeg
   ! Call a listener with the token name and result when a token is found
   !
   type, extends(PatternT) :: TokenT
-    class(PatternT), pointer :: ptn => NULL()
+    class(PatternT), allocatable :: ptn
     character(len=:), allocatable :: token
     procedure(tokenListener), nopass, pointer :: listener => NULL()
   contains
@@ -408,22 +426,21 @@ contains
   ! Create a new exact string match pattern.
   !
   function Pstr(string) result(ptn)
-    character*(*)            :: string
-    class(PatternT), pointer :: ptn
-    type(PstrT), pointer :: pstr1
+    character*(*), intent(in)    :: string
+    type(PstrT)                  :: pstr_
+    class(PatternT), allocatable :: ptn
 
-    allocate(pstr1)
-    allocate(character(len(string)) :: pstr1%string)
-    pstr1%string = string
-    ptn => pstr1
+    allocate(character(len(string)) :: pstr_%string)
+    pstr_%string = string
+    allocate(ptn, source=pstr_)
   end function Pstr
 
   !============================================================================
 
   function PstrT_match(this, src) result(match)
-    class(PstrT)   :: this
-    class(SourceT) :: src
-    integer        :: match
+    class(PstrT), intent(in) :: this
+    class(SourceT)           :: src
+    integer                  :: match
     integer :: start, i
     character :: c
 
@@ -446,21 +463,20 @@ contains
   ! Create a pattern to absorb n values.
   !
   function Pn(n) result(ptn)
-    integer :: n
-    class(PatternT), pointer :: ptn
-    type(PnT), pointer :: pn1
+    integer, intent(in)          :: n
+    type(PnT)                    :: pn_
+    class(PatternT), allocatable :: ptn
 
-    allocate(pn1)
-    pn1%n = n
-    ptn => pn1
+    pn_%n = n
+    allocate(ptn, source=pn_)
   end function Pn
 
   !============================================================================
 
   function PnT_match(this, src) result(match)
-    class(PnT)     :: this
-    class(SourceT) :: src
-    integer        :: match
+    class(PnT), intent(in) :: this
+    class(SourceT)         :: src
+    integer                :: match
     integer :: start
     logical :: reset
 
@@ -484,25 +500,24 @@ contains
   ! Create a pattern that matches values in set
   !
   function S(set) result(ptn)
-    character*(*)            :: set
-    class(PatternT), pointer :: ptn
-    type(ST), pointer :: pset
+    character*(*), intent(in)    :: set
+    type(ST)                     :: s_
+    class(PatternT), allocatable :: ptn
     integer :: i
 
-    allocate(pset)
-    allocate(pset%chrs(len(set)))
+    allocate(s_%chrs(len(set)))
     do i = 1, len(set)
-      pset%chrs(i) = set(i:i)
+      s_%chrs(i) = set(i:i)
     end do
-    ptn => pset
+    allocate(ptn, source=s_)
   end function S
 
   !============================================================================
 
   function ST_match(this, src) result(match)
-    class(ST)      :: this
-    class(SourceT) :: src
-    integer        :: match
+    class(ST),      intent(in) :: this
+    class(SourceT)             :: src
+    integer                    :: match
     integer :: start, i
     character :: c
 
@@ -529,22 +544,21 @@ contains
   ! Create a pattern that matches values in range
   !
   function R(rng) result(ptn)
-    character*2              :: rng
-    class(PatternT), pointer :: ptn
-    type(RT), pointer :: prng
+    character*2, intent(in)      :: rng
+    type(RT)                     :: rt_
+    class(PatternT), allocatable :: ptn
 
-    allocate(prng)
-    prng%rng(1) = rng(1:1)
-    prng%rng(2) = rng(2:2)
-    ptn => prng
+    rt_%rng(1) = rng(1:1)
+    rt_%rng(2) = rng(2:2)
+    allocate(ptn, source=rt_)
   end function R
 
   !============================================================================
 
   function RT_match(this, src) result(match)
-    class(RT)      :: this
-    class(SourceT) :: src
-    integer        :: match
+    class(RT), intent(in) :: this
+    class(SourceT)        :: src
+    integer               :: match
     integer :: start
     character :: c
 
@@ -565,27 +579,15 @@ contains
   ! V
   !============================================================================
 
-  !
-  ! Create a variable pattern (set later with setPattern)
-  !
-  function V() result(VarT)
-    implicit none
-    type(VT), pointer :: VarT
-
-    allocate(VarT)
-  end function V
-
-  !============================================================================
-
   function VT_match(this, src) result(match)
   !
   ! Try to match the associated pattern
   !
-    class(VT)      :: this
-    class(SourceT) :: src
-    integer        :: match
+    class(VT), intent(in) :: this
+    class(SourceT)        :: src
+    integer               :: match
 
-    if (associated(this%ptn)) then
+    if (allocated(this%ptn)) then
       match = this%ptn%match(src)
     else
       match = src%getLoc()
@@ -595,11 +597,32 @@ contains
   !============================================================================
 
   subroutine VT_setPattern(this, ptn)
-    class(VT)                :: this
-    class(PatternT), pointer :: ptn
+    class(VT)                   :: this
+    class(PatternT), intent(in) :: ptn
 
-    this%ptn => ptn
+    allocate(this%ptn, source = ptn)
   end subroutine VT_setPattern
+
+  !============================================================================
+  ! PatternAssignT
+  !============================================================================
+
+  subroutine PatternAssign(to, from)
+    class(PatternT), allocatable, intent(out) :: to
+    class(PatternT),               intent(in) :: from
+
+    allocate(to, source=from)
+  end subroutine PatternAssign
+
+  !============================================================================
+
+  function PatternAssignT_match(this, src) result(match)
+    class(PatternAssignT), intent(in) :: this
+    class(SourceT)                    :: src
+    integer                           :: match
+
+    match = this%ptn%match(src)
+  end function PatternAssignT_match
 
   !============================================================================
   ! PatternPlusT
@@ -609,22 +632,21 @@ contains
   ! Create a string pattern
   !
   function PatternPlus(ptn1, ptn2) result(ptn)
-    class(PatternT), pointer, intent(in) :: ptn1, ptn2
-    class(PatternT), pointer             :: ptn
-    type(PatternPlusT), pointer :: pls
+    class(PatternT), intent(in)  :: ptn1, ptn2
+    type(PatternPlusT)           :: pls
+    class(PatternT), allocatable :: ptn
 
-    allocate(pls)
-    pls%ptn1 => ptn1
-    pls%ptn2 => ptn2
-    ptn => pls
+    allocate(pls%ptn1, source = ptn1)
+    allocate(pls%ptn2, source = ptn2)
+    allocate(ptn, source=pls)
   end function PatternPlus
 
   !============================================================================
 
   function PatternPlusT_match(this, src) result(match)
-    class(PatternPlusT) :: this
-    class(SourceT)      :: src
-    integer             :: match
+    class(PatternPlusT), intent(in) :: this
+    class(SourceT)                  :: src
+    integer                         :: match
     integer :: start
 
     start = src%getLoc()
@@ -648,14 +670,13 @@ contains
   ! Create a subtraction object
   !
   function PatternMinus(ptn1, ptn2) result(ptn)
-    class(PatternT), pointer, intent(in) :: ptn1, ptn2
-    class(PatternT), pointer             :: ptn
-    type(PatternMinusT), pointer :: mns
+    class(PatternT), intent(in)  :: ptn1, ptn2
+    type(PatternMinusT)          :: mns
+    class(PatternT), allocatable :: ptn
 
-    allocate(mns)
-    mns%ptn1 => ptn1
-    mns%ptn2 => ptn2
-    ptn => mns
+    allocate(mns%ptn1, source=ptn1)
+    allocate(mns%ptn2, source=ptn2)
+    allocate(ptn, source=mns)
   end function PatternMinus
 
   !============================================================================
@@ -664,14 +685,12 @@ contains
   ! Create a subtraction object
   !
   function PatternNeg(ptnmns) result(ptn)
-    class(PatternT), pointer, intent(in) :: ptnmns
-    class(PatternT), pointer             :: ptn
-    type(PatternMinusT), pointer :: mns
+    class(PatternT), intent(in)  :: ptnmns
+    type(PatternMinusT)          :: mns
+    class(PatternT), allocatable :: ptn
 
-    allocate(mns)
-    nullify(mns%ptn1)
-    mns%ptn2 => ptnmns
-    ptn => mns
+    allocate(mns%ptn2, source=ptnmns)
+    allocate(ptn, source=mns)
   end function PatternNeg
 
   !============================================================================
@@ -690,7 +709,7 @@ contains
 
     ! Check that it does match pattern 1
     ! If pattern 1 is missing assume a match
-    if (associated(this%ptn1)) then
+    if (allocated(this%ptn1)) then
       match = this%ptn1%match(src)
       if (.not.isMatch(match)) goto 10
     end if
@@ -710,22 +729,21 @@ contains
   ! Create a string pattern
   !
   function PatternTimes(ptn1, ptn2) result(ptn)
-    class(PatternT), pointer, intent(in) :: ptn1, ptn2
-    class(PatternT), pointer             :: ptn
-    type(PatternTimesT), pointer :: tms
+    class(PatternT), intent(in)  :: ptn1, ptn2
+    type(PatternTimesT)          :: tms
+    class(PatternT), allocatable :: ptn
 
-    allocate(tms)
-    tms%ptn1 => ptn1
-    tms%ptn2 => ptn2
-    ptn => tms
+    allocate(tms%ptn1, source=ptn1)
+    allocate(tms%ptn2, source=ptn2)
+    allocate(ptn, source=tms)
   end function PatternTimes
 
   !============================================================================
 
   function PatternTimesT_match(this, src) result(match)
-    class(PatternTimesT) :: this
-    class(SourceT)       :: src
-    integer              :: match
+    class(PatternTimesT), intent(in) :: this
+    class(SourceT)                   :: src
+    integer                          :: match
     integer :: start
 
     start = src%getLoc()
@@ -747,24 +765,23 @@ contains
   !
   ! Create a pattern for P**n
   !
-  function PatternPower(ptn, n) result(rptn)
-    class(PatternT), pointer, intent(in) :: ptn
-    integer,                  intent(in) :: n
-    class(PatternT), pointer             :: rptn
-    type(PatternPowerT), pointer :: pwr
+  function PatternPower(ptn1, n) result(ptn)
+    class(PatternT), intent(in)  :: ptn1
+    integer,         intent(in)  :: n
+    type(PatternPowerT)          :: pwr
+    class(PatternT), allocatable :: ptn
 
-    allocate(pwr)
-    pwr%ptn => ptn
+    allocate(pwr%ptn, source=ptn1)
     pwr%n = n
-    rptn => pwr
+    allocate(ptn, source=pwr)
   end function PatternPower
 
   !============================================================================
 
   function PatternPowerT_match(this, src) result(match)
-    class(PatternPowerT) :: this
-    class(SourceT)       :: src
-    integer              :: match
+    class(PatternPowerT), intent(in) :: this
+    class(SourceT)                   :: src
+    integer                          :: match
     integer :: start, i, matcho
 
     matcho = NO_MATCH
@@ -810,18 +827,17 @@ contains
   !============================================================================
 
   function Token(ptn1, token_, listener) result(ptn)
-    class(PatternT), pointer :: ptn1
-    character*(*)            :: token_
-    procedure(tokenListener) :: listener
-    class(PatternT), pointer :: ptn
-    type(TokenT), pointer :: ptnToken
+    class(PatternT), intent(in)  :: ptn1
+    character*(*),   intent(in)  :: token_
+    procedure(tokenListener)     :: listener
+    type(TokenT)                 :: ptnToken
+    class(PatternT), allocatable :: ptn
 
-    allocate(ptnToken)
     allocate(character(len=len(token_)) :: ptnToken%token)
-    ptnToken%ptn      => ptn1
+    allocate(ptnToken%ptn, source=ptn1)
     ptnToken%token    =  token_
     ptnToken%listener => listener
-    ptn               => ptnToken
+    allocate(ptn, source=ptnToken)
   end function Token
 
   !============================================================================

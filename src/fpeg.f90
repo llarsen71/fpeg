@@ -450,13 +450,11 @@ contains
   !
   ! Create a pattern to absorb n values.
   !
-  function Pn(n) result(ptn)
+  function Pn(n) result(pn_)
     integer, intent(in)          :: n
     type(PnT)                    :: pn_
-    class(PatternT), allocatable :: ptn
 
     pn_%n = n
-    allocate(ptn, source=pn_)
   end function Pn
 
   !============================================================================
@@ -487,17 +485,15 @@ contains
   !
   ! Create a pattern that matches values in set
   !
-  function S(set) result(ptn)
+  function S(set) result(s_)
     character*(*), intent(in)    :: set
     type(ST)                     :: s_
-    class(PatternT), allocatable :: ptn
     integer :: i
 
     allocate(s_%chrs(len(set)))
     do i = 1, len(set)
       s_%chrs(i) = set(i:i)
     end do
-    allocate(ptn, source=s_)
   end function S
 
   !============================================================================
@@ -531,14 +527,12 @@ contains
   !
   ! Create a pattern that matches values in range
   !
-  function R(rng) result(ptn)
+  function R(rng) result(r_)
     character*2, intent(in)      :: rng
-    type(RT)                     :: rt_
-    class(PatternT), allocatable :: ptn
+    type(RT)                     :: r_
 
-    rt_%rng(1) = rng(1:1)
-    rt_%rng(2) = rng(2:2)
-    allocate(ptn, source=rt_)
+    r_%rng(1) = rng(1:1)
+    r_%rng(2) = rng(2:2)
   end function R
 
   !============================================================================
@@ -619,14 +613,12 @@ contains
   !
   ! Create a string pattern
   !
-  function PatternPlus(ptn1, ptn2) result(ptn)
+  function PatternPlus(ptn1, ptn2) result(pls)
     class(PatternT), intent(in)  :: ptn1, ptn2
     type(PatternPlusT)           :: pls
-    class(PatternT), allocatable :: ptn
 
     allocate(pls%ptn1, source = ptn1)
     allocate(pls%ptn2, source = ptn2)
-    allocate(ptn, source=pls)
   end function PatternPlus
 
   !============================================================================
@@ -657,14 +649,12 @@ contains
   !
   ! Create a subtraction object
   !
-  function PatternMinus(ptn1, ptn2) result(ptn)
+  function PatternMinus(ptn1, ptn2) result(mns)
     class(PatternT), intent(in)  :: ptn1, ptn2
     type(PatternMinusT)          :: mns
-    class(PatternT), allocatable :: ptn
 
     allocate(mns%ptn1, source=ptn1)
     allocate(mns%ptn2, source=ptn2)
-    allocate(ptn, source=mns)
   end function PatternMinus
 
   !============================================================================
@@ -672,13 +662,11 @@ contains
   !
   ! Create a subtraction object
   !
-  function PatternNeg(ptnmns) result(ptn)
+  function PatternNeg(ptnmns) result(mns)
     class(PatternT), intent(in)  :: ptnmns
     type(PatternMinusT)          :: mns
-    class(PatternT), allocatable :: ptn
 
     allocate(mns%ptn2, source=ptnmns)
-    allocate(ptn, source=mns)
   end function PatternNeg
 
   !============================================================================
@@ -716,14 +704,12 @@ contains
   !
   ! Create a string pattern
   !
-  function PatternTimes(ptn1, ptn2) result(ptn)
+  function PatternTimes(ptn1, ptn2) result(tms)
     class(PatternT), intent(in)  :: ptn1, ptn2
     type(PatternTimesT)          :: tms
-    class(PatternT), allocatable :: ptn
 
     allocate(tms%ptn1, source=ptn1)
     allocate(tms%ptn2, source=ptn2)
-    allocate(ptn, source=tms)
   end function PatternTimes
 
   !============================================================================
@@ -753,15 +739,13 @@ contains
   !
   ! Create a pattern for P**n
   !
-  function PatternPower(ptn1, n) result(ptn)
+  function PatternPower(ptn1, n) result(pwr)
     class(PatternT), intent(in)  :: ptn1
     integer,         intent(in)  :: n
     type(PatternPowerT)          :: pwr
-    class(PatternT), allocatable :: ptn
 
     allocate(pwr%ptn, source=ptn1)
     pwr%n = n
-    allocate(ptn, source=pwr)
   end function PatternPower
 
   !============================================================================
@@ -814,18 +798,16 @@ contains
   ! Token
   !============================================================================
 
-  function Token(ptn1, token_, listener) result(ptn)
+  function Token(ptn1, token_name, listener) result(token_)
     class(PatternT), intent(in)  :: ptn1
-    character*(*),   intent(in)  :: token_
+    character*(*),   intent(in)  :: token_name
     procedure(tokenListener)     :: listener
-    type(TokenT)                 :: ptnToken
-    class(PatternT), allocatable :: ptn
+    type(TokenT)                 :: token_
 
-    allocate(character(len=len(token_)) :: ptnToken%token)
-    allocate(ptnToken%ptn, source=ptn1)
-    ptnToken%token    =  token_
-    ptnToken%listener => listener
-    allocate(ptn, source=ptnToken)
+    allocate(character(len=len(token_name)) :: token_%token)
+    allocate(token_%ptn, source=ptn1)
+    token_%token    =  token_name
+    token_%listener => listener
   end function Token
 
   !============================================================================

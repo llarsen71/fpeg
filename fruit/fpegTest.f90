@@ -92,7 +92,8 @@ contains
 
     ! Simple integer math expressions
     Spc = P(' ')**0
-
+    
+    Expr    = V()
     Value   = R('09')**1 + (P('(') * Spc * Expr * Spc * P(')'))
     Product = Value * Spc * (S('*/') * Spc * Value)**0
     Sum     = Spc * Product * Spc * (S('+-') * Spc * Product * Spc)**0

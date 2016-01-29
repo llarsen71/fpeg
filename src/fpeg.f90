@@ -203,18 +203,6 @@ module fpeg
   !----------------------------------------------------------------------------
 
   !
-  ! Pattern Variable (or holder) for a pattern that will be specified and set
-  ! later. This allows recursive grammars to be defined.
-  !
-  type, extends(PatternT) :: PatternAssignT
-    class(PatternT), allocatable :: ptn
-  contains
-    procedure :: match => PatternAssignT_match
-  end type PatternAssignT
-
-  !----------------------------------------------------------------------------
-
-  !
   ! Try to match the first pattern. If this fails try to match the second pattern.
   !
   type, extends(PatternT) :: PatternPlusT
@@ -579,6 +567,16 @@ contains
   ! V
   !============================================================================
 
+  function V() result(v_)
+    type(VT) :: v_
+    integer :: a
+    
+    a = 1 ! Dummy so that this will compile.
+  end function V
+  
+  !============================================================================
+
+  
   function VT_match(this, src) result(match)
   !
   ! Try to match the associated pattern
@@ -609,20 +607,10 @@ contains
 
   subroutine PatternAssign(to, from)
     class(PatternT), allocatable, intent(out) :: to
-    class(PatternT),               intent(in) :: from
+    class(PatternT),              intent(in) :: from
 
     allocate(to, source=from)
   end subroutine PatternAssign
-
-  !============================================================================
-
-  function PatternAssignT_match(this, src) result(match)
-    class(PatternAssignT), intent(in) :: this
-    class(SourceT)                    :: src
-    integer                           :: match
-
-    match = this%ptn%match(src)
-  end function PatternAssignT_match
 
   !============================================================================
   ! PatternPlusT
